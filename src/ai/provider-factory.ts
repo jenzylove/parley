@@ -29,7 +29,11 @@ export function createAIProvider(): AIProvider {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const local = new LocalExplanationProvider();
 
-  if (apiKey && process.env.NODE_ENV !== "test") {
+  // process.env.VITEST (not NODE_ENV) is the reliable "are we under test"
+  // signal — see settlement-adapter-factory.ts for why NODE_ENV alone isn't
+  // safe on platforms like Vercel that force NODE_ENV=production for the
+  // whole build.
+  if (apiKey && process.env.VITEST !== "true") {
     return withFallback(new AnthropicProvider(apiKey), local);
   }
 

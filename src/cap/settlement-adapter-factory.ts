@@ -22,7 +22,13 @@ export function createSettlementAdapter(): SettlementAdapter {
     CROO_PROVIDER_WALLET_ADDRESS &&
     CROO_USDC_TOKEN_ADDRESS;
 
-  if (hasRealCredentials && process.env.NODE_ENV !== "test") {
+  // process.env.VITEST (not NODE_ENV) is the reliable "are we under test" signal:
+  // Vitest sets it unconditionally, whereas platforms like Vercel force
+  // NODE_ENV=production for the whole build — including the `npm test` step
+  // `npm run build` runs — and Vitest never overrides an already-set NODE_ENV.
+  // Without this, a real CROO_* secret configured on Vercel makes the test
+  // suite hit the live CAP API and create real orders on every deploy.
+  if (hasRealCredentials && process.env.VITEST !== "true") {
     const clientConfig = { baseURL: CROO_API_URL, wsURL: CROO_WS_URL };
 
     return new CROOSettlementAdapter(
