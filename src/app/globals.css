@@ -1693,6 +1693,15 @@ dd {
   color: var(--navy);
 }
 
+.inlineCode {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink);
+}
+
 .dashboardEmpty {
   display: flex;
   flex-direction: column;

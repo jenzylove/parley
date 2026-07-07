@@ -1,5 +1,6 @@
 import { listAllNegotiations } from "@/api/store";
 import { PROTOCOL_VERSION } from "@/api/protocol-version";
+import { demoSellerPolicy } from "@/app/api/negotiate/demo/scenarios";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +10,14 @@ export const dynamic = "force-dynamic";
  * there's no per-account auth/ownership model, so this is process-wide, not
  * scoped to "your" agents. Honest about it in the field names rather than
  * pretending to be a private multi-tenant view it isn't (yet).
+ *
+ * Excludes the homepage's public scenario-picker sandbox (demoSellerPolicy):
+ * that identity isn't yours no matter which seller you registered, so
+ * counting it here would make "your negotiation activity" show numbers with
+ * no connection to your own policy.
  */
 export async function GET() {
-  const all = listAllNegotiations();
+  const all = listAllNegotiations().filter((entry) => entry.session.sellerAgentId !== demoSellerPolicy.sellerAgentId);
 
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   const negotiationsToday = all.filter((entry) => new Date(entry.session.createdAt).getTime() >= oneDayAgo).length;

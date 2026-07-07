@@ -19,7 +19,7 @@ export default function Home() {
             <p className="eyebrow">What you get</p>
             <h3>Close more deals without cutting your margin.</h3>
             <p>
-              Your price floor is enforced by a deterministic engine on every offer — Parley can never accept below
+              Your price floor is enforced by a deterministic engine on every offer. Parley can never accept below
               it, no matter what a buyer asks for.
             </p>
           </div>
@@ -28,7 +28,7 @@ export default function Home() {
             <h3>Policy-driven pricing, with zero integration on their end.</h3>
             <p>
               Bundle discounts, loyalty pricing, and rush fees applied automatically instead of a flat
-              accept-or-walk-away price — through the CAP flow they already use.
+              accept-or-walk-away price, through the CAP flow they already use.
             </p>
           </div>
         </section>
@@ -96,7 +96,7 @@ export default function Home() {
             <h3>The protocol underneath</h3>
             <p>
               Deterministic negotiation engine, Ed25519-signed messages, a seller registry that never leaks
-              reservation prices, and standalone agent processes that speak the wire protocol directly — no
+              reservation prices, and standalone agent processes that speak the wire protocol directly. No
               framework required.
             </p>
           </div>

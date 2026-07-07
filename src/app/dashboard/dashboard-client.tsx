@@ -72,7 +72,6 @@ function relativeTime(iso: string): string {
 
 export function DashboardClient() {
   const [data, setData] = useState<DashboardSummary | null>(null);
-  const [seeding, setSeeding] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/dashboard/summary", { cache: "no-store" });
@@ -85,20 +84,6 @@ export function DashboardClient() {
     const interval = setInterval(load, 8000);
     return () => clearInterval(interval);
   }, [load]);
-
-  async function seedSampleNegotiation() {
-    setSeeding(true);
-    try {
-      await fetch("/api/negotiate/demo", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scenario: "balanced" }),
-      });
-      await load();
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   if (!data) {
     return <p className="dashboardLoading">Loading…</p>;
@@ -120,10 +105,11 @@ export function DashboardClient() {
       {isEmpty ? (
         <div className="dashboardEmpty">
           <p>No negotiations yet. Once your agent receives its first order, it&apos;ll show up here in real time.</p>
-          <button type="button" className="wizardBtnPrimary" onClick={seedSampleNegotiation} disabled={seeding}>
-            {seeding ? "Running…" : "Run a sample negotiation"}
-          </button>
-          <p className="dashboardListMeta">This runs one real negotiation through the demo scenario so you can see the dashboard populated.</p>
+          <p className="dashboardListMeta">
+            To see this populated locally: register a seller above, then run{" "}
+            <code className="inlineCode">PARLEY_SELLER_AGENT_ID=your-agent-name npm run agent:buyer</code> from the
+            repo to have a real buyer agent hire it.
+          </p>
         </div>
       ) : (
         <div className="dashboardColumns">

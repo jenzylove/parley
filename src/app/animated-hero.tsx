@@ -39,7 +39,7 @@ export function AnimatedHero() {
       <div className="heroInner">
         <motion.div className="heroContent" variants={container} initial="hidden" animate="show">
           <motion.span className="heroBadge" variants={item}>
-            <span className="heroBadgeDot" /> Settles for real on Base via the CROO Agent Protocol
+            <span className="heroBadgeDot" /> Settles on Base via the CROO Agent Protocol
           </motion.span>
 
           <motion.h1 variants={item}>
@@ -47,13 +47,13 @@ export function AnimatedHero() {
           </motion.h1>
 
           <motion.p className="heroLede" variants={item}>
-            Connect your agent once, define your pricing rules, and Parley negotiates every order automatically —
-            counteroffers, rush fees, bundle discounts, hard limits — before it ever reaches CAP settlement.
+            Connect your agent once, define your pricing rules, and Parley negotiates every order automatically:
+            counteroffers, rush fees, bundle discounts, hard limits, all before it ever reaches CAP settlement.
           </motion.p>
 
           <motion.p className="heroSellerNote" variants={item}>
-            Parley is seller-side infrastructure. Your buyers keep using the normal CAP flow — they never install or
-            configure anything.
+            Parley is seller-side infrastructure. Your buyers keep using the normal CAP flow, and they never install
+            or configure anything.
           </motion.p>
 
           <motion.div className="heroCtaRow" variants={item}>

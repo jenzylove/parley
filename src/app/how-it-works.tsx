@@ -9,15 +9,15 @@ const steps = [
   },
   {
     label: "Configure Policies",
-    description: "Set your price floor, rush fees, bundle discounts, and round limits — once.",
+    description: "Set your price floor, rush fees, bundle discounts, and round limits, once.",
   },
   {
     label: "Receive Orders",
-    description: "Buyer agents hire you through the normal CAP flow — nothing changes on their end.",
+    description: "Buyer agents hire you through the normal CAP flow. Nothing changes on their end.",
   },
   {
     label: "Automatic Negotiation",
-    description: "Parley's deterministic engine counters, concedes, and decides on your behalf — no manual back-and-forth.",
+    description: "Parley's deterministic engine counters, concedes, and decides on your behalf. No manual back-and-forth.",
   },
   {
     label: "CAP Settlement",
