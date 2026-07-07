@@ -19,7 +19,7 @@ type FormState = {
 
 const defaults: FormState = {
   sellerAgentId: "",
-  service: "Landing page copy",
+  service: "",
   standardDeliveryDays: 5,
   minimumPrice: 44,
   preferredPrice: 64,
@@ -30,7 +30,18 @@ const defaults: FormState = {
   maximumWorkload: 6,
 };
 
-const stepLabels = ["Connect", "Name your agent", "Negotiation rules", "Review"];
+const serviceOptions = [
+  "SEO Audit",
+  "Logo Design",
+  "Smart Contract Review",
+  "AI Research",
+  "Translation",
+  "Data Analysis",
+];
+
+const CUSTOM_SERVICE = "custom";
+
+const stepLabels = ["Import agent", "Agent details", "Negotiation rules", "Review"];
 
 function NumberField({
   label,
@@ -47,12 +58,7 @@ function NumberField({
     <label className="wizardField">
       <span>{label}</span>
       <div className="wizardFieldInput">
-        <input
-          type="number"
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          min={0}
-        />
+        <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} min={0} />
         {suffix ? <span className="wizardFieldSuffix">{suffix}</span> : null}
       </div>
     </label>
@@ -62,6 +68,7 @@ function NumberField({
 export function OnboardingWizard() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(defaults);
+  const [serviceMode, setServiceMode] = useState<"preset" | typeof CUSTOM_SERVICE>("preset");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -101,9 +108,9 @@ export function OnboardingWizard() {
         <h2>Your CROO Agent is negotiation-enabled.</h2>
         <p>
           <strong>{form.sellerAgentId}</strong>{" "}
-          is now registered with Parley&apos;s negotiation engine. Every order referencing this agent will be
-          negotiated automatically against the rules you just set — enforced by the deterministic engine on every
-          single offer, never bypassed.
+          is now registered with Parley&apos;s negotiation engine. Every order it receives will be negotiated
+          automatically against the rules you just set — enforced by the deterministic engine on every single offer,
+          never bypassed.
         </p>
         <div className="wizardSummaryGrid">
           <div>
@@ -123,6 +130,21 @@ export function OnboardingWizard() {
             <strong>{form.standardDeliveryDays}d</strong>
           </div>
         </div>
+
+        <details className="advancedDetails">
+          <summary>Advanced</summary>
+          <dl>
+            <div>
+              <dt>Agent identifier</dt>
+              <dd>{form.sellerAgentId}</dd>
+            </div>
+            <div>
+              <dt>Service listing</dt>
+              <dd>{form.service}</dd>
+            </div>
+          </dl>
+        </details>
+
         <div className="heroCtaRow">
           <Link className="wizardBtnPrimary" href="/dashboard">
             Go to Dashboard
@@ -158,16 +180,16 @@ export function OnboardingWizard() {
           {step === 0 ? (
             <div className="wizardStep">
               <p className="eyebrow">Step 1</p>
-              <h2>Connect your CROO Agent</h2>
+              <h2>Import your CROO Agent</h2>
               <p className="wizardStepNote">
-                Your agent&apos;s CAP identity (its wallet, DID, and service listing) is set up on the CROO Agent
-                Store, not here. If you haven&apos;t registered one yet, do that first — then come back and continue.
+                You already have an agent — its wallet, DID, and service listing live on the CROO Agent Store.
+                Parley doesn&apos;t create a new one; it links to the agent you already registered there.
               </p>
               <a className="wizardExternalLink" href="https://agent.croo.network" target="_blank" rel="noreferrer">
                 Open the CROO Agent Store &#8599;
               </a>
               <p className="wizardStepNote">
-                Already have an agent? Just continue — the next step links its negotiation rules to Parley.
+                Already have your agent open? Continue — the next step attaches negotiation rules to it.
               </p>
               <button type="button" className="wizardBtnPrimary" onClick={() => setStep(1)}>
                 Continue
@@ -178,23 +200,58 @@ export function OnboardingWizard() {
           {step === 1 ? (
             <div className="wizardStep">
               <p className="eyebrow">Step 2</p>
-              <h2>Name your agent</h2>
-              <p className="wizardStepNote">This identifies your agent within Parley&apos;s negotiation registry.</p>
+              <h2>Agent details</h2>
+              <p className="wizardStepNote">Tell Parley which agent to negotiate on behalf of, and what it sells.</p>
 
               <label className="wizardField">
-                <span>Agent ID</span>
+                <span>Agent name</span>
                 <input
                   type="text"
-                  placeholder="e.g. seller-agent-copywriter"
+                  placeholder="e.g. Ava — Copywriting Studio"
                   value={form.sellerAgentId}
                   onChange={(event) => update("sellerAgentId", event.target.value)}
                 />
+                <span className="wizardFieldHint">If your agent already has a name, use it here — you can edit it later.</span>
               </label>
 
               <label className="wizardField">
                 <span>What does it sell?</span>
-                <input type="text" value={form.service} onChange={(event) => update("service", event.target.value)} />
+                <select
+                  value={serviceMode === CUSTOM_SERVICE ? CUSTOM_SERVICE : form.service || ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === CUSTOM_SERVICE) {
+                      setServiceMode(CUSTOM_SERVICE);
+                      update("service", "");
+                    } else {
+                      setServiceMode("preset");
+                      update("service", value);
+                    }
+                  }}
+                >
+                  <option value="" disabled>
+                    Select a service
+                  </option>
+                  {serviceOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value={CUSTOM_SERVICE}>Custom…</option>
+                </select>
               </label>
+
+              {serviceMode === CUSTOM_SERVICE ? (
+                <label className="wizardField">
+                  <span>Describe the service</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Podcast editing"
+                    value={form.service}
+                    onChange={(event) => update("service", event.target.value)}
+                  />
+                </label>
+              ) : null}
 
               <NumberField
                 label="Standard delivery time"
@@ -210,7 +267,7 @@ export function OnboardingWizard() {
                 <button
                   type="button"
                   className="wizardBtnPrimary"
-                  disabled={!form.sellerAgentId.trim()}
+                  disabled={!form.sellerAgentId.trim() || !form.service.trim()}
                   onClick={() => setStep(2)}
                 >
                   Continue
@@ -228,26 +285,41 @@ export function OnboardingWizard() {
                 floor, no matter what.
               </p>
 
-              <div className="wizardFieldGrid">
-                <NumberField label="Minimum price (floor)" value={form.minimumPrice} onChange={(v) => update("minimumPrice", v)} suffix="USDC" />
-                <NumberField label="Target price" value={form.preferredPrice} onChange={(v) => update("preferredPrice", v)} suffix="USDC" />
-                <NumberField label="Rush fee" value={form.rushFee} onChange={(v) => update("rushFee", v)} suffix="USDC" />
-                <NumberField label="Bundle discount" value={form.bundleDiscount} onChange={(v) => update("bundleDiscount", v)} suffix="USDC" />
-                <NumberField
-                  label="Recurring client discount"
-                  value={form.recurringClientDiscount}
-                  onChange={(v) => update("recurringClientDiscount", v)}
-                  suffix="USDC"
-                />
-                <NumberField label="Maximum rounds" value={form.maxRounds} onChange={(v) => update("maxRounds", v)} />
-                <NumberField label="Workload capacity" value={form.maximumWorkload} onChange={(v) => update("maximumWorkload", v)} suffix="orders" />
+              <div className="ruleGroups">
+                <div className="ruleGroup">
+                  <p className="ruleGroupTitle">Pricing</p>
+                  <NumberField label="Minimum price (floor)" value={form.minimumPrice} onChange={(v) => update("minimumPrice", v)} suffix="USDC" />
+                  <NumberField label="Preferred price" value={form.preferredPrice} onChange={(v) => update("preferredPrice", v)} suffix="USDC" />
+                  <label className="wizardField">
+                    <span>Payment preference</span>
+                    <select disabled value="upfront">
+                      <option value="upfront">Upfront (only option supported today)</option>
+                    </select>
+                  </label>
+                </div>
 
-                <label className="wizardField">
-                  <span>Payment preference</span>
-                  <select disabled value="upfront">
-                    <option value="upfront">Upfront (only option supported today)</option>
-                  </select>
-                </label>
+                <div className="ruleGroup">
+                  <p className="ruleGroupTitle">Delivery</p>
+                  <NumberField label="Standard delivery" value={form.standardDeliveryDays} onChange={(v) => update("standardDeliveryDays", v)} suffix="days" />
+                  <NumberField label="Rush fee" value={form.rushFee} onChange={(v) => update("rushFee", v)} suffix="USDC" />
+                </div>
+
+                <div className="ruleGroup">
+                  <p className="ruleGroupTitle">Customer benefits</p>
+                  <NumberField label="Bundle discount" value={form.bundleDiscount} onChange={(v) => update("bundleDiscount", v)} suffix="USDC" />
+                  <NumberField
+                    label="Recurring client discount"
+                    value={form.recurringClientDiscount}
+                    onChange={(v) => update("recurringClientDiscount", v)}
+                    suffix="USDC"
+                  />
+                </div>
+
+                <div className="ruleGroup">
+                  <p className="ruleGroupTitle">Limits</p>
+                  <NumberField label="Maximum rounds" value={form.maxRounds} onChange={(v) => update("maxRounds", v)} />
+                  <NumberField label="Capacity" value={form.maximumWorkload} onChange={(v) => update("maximumWorkload", v)} suffix="orders" />
+                </div>
               </div>
 
               <div className="wizardActions">
@@ -264,7 +336,7 @@ export function OnboardingWizard() {
                 </button>
               </div>
               {form.preferredPrice < form.minimumPrice ? (
-                <p className="wizardFieldError">Target price must be at or above your minimum price.</p>
+                <p className="wizardFieldError">Preferred price must be at or above your minimum price.</p>
               ) : null}
             </div>
           ) : null}
@@ -275,7 +347,7 @@ export function OnboardingWizard() {
               <h2>Review &amp; finish</h2>
               <div className="wizardSummaryGrid">
                 <div>
-                  <span>Agent ID</span>
+                  <span>Agent name</span>
                   <strong>{form.sellerAgentId}</strong>
                 </div>
                 <div>
@@ -287,7 +359,7 @@ export function OnboardingWizard() {
                   <strong>{form.minimumPrice} USDC</strong>
                 </div>
                 <div>
-                  <span>Target price</span>
+                  <span>Preferred price</span>
                   <strong>{form.preferredPrice} USDC</strong>
                 </div>
                 <div>

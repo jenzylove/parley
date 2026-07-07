@@ -8,21 +8,23 @@ export const metadata = {
 
 export default function DashboardPage() {
   return (
-    <main className="shell">
+    <>
       <SiteHeader />
 
-      <section className="pageIntro">
-        <p className="eyebrow">Dashboard</p>
-        <h1>Your negotiation activity</h1>
-        <p className="pageIntroLede">
-          Real numbers from this server&apos;s negotiation store — there&apos;s no account system yet, so this reflects
-          everything Parley has negotiated this session, not a private per-user view.
-        </p>
-      </section>
+      <main className="shell">
+        <section className="pageIntro">
+          <p className="eyebrow">Dashboard</p>
+          <h1>Your negotiation activity</h1>
+          <p className="pageIntroLede">
+            Real numbers from this server&apos;s negotiation store — there&apos;s no account system yet, so this
+            reflects everything Parley has negotiated this session, not a private per-user view.
+          </p>
+        </section>
 
-      <DashboardClient />
+        <DashboardClient />
 
-      <SiteFooter />
-    </main>
+        <SiteFooter />
+      </main>
+    </>
   );
 }

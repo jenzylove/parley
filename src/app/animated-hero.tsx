@@ -24,7 +24,7 @@ const orbs = [
 
 export function AnimatedHero() {
   return (
-    <section id="top" className="animatedHero fullBleed">
+    <section id="top" className="animatedHero">
       <div className="heroGrid" aria-hidden />
       {orbs.map((orb, index) => (
         <motion.div
@@ -56,7 +56,7 @@ export function AnimatedHero() {
               Start Building
             </Link>
             <Link className="heroCtaSecondary" href="/demo">
-              Watch Demo
+              Live Negotiation
             </Link>
           </motion.div>
         </motion.div>

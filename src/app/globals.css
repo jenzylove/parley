@@ -17,6 +17,19 @@
   box-sizing: border-box;
 }
 
+a,
+button {
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -45,7 +58,7 @@ pre {
 }
 
 .shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   padding: 0 0 48px;
 }
@@ -475,10 +488,13 @@ dd {
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+  transition: color 0.15s ease, transform 0.15s ease;
+  display: inline-block;
 }
 
 .devSectionLinks a:hover {
   color: var(--accent);
+  transform: translateX(2px);
 }
 
 @media (max-width: 900px) {
@@ -531,25 +547,46 @@ dd {
 }
 
 .txCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px 16px;
+  padding: 14px 40px 14px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--code);
   color: #d7f9ef;
   text-decoration: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.txCard:hover {
+.txCard:hover,
+.txCard:focus-visible {
+  transform: translateY(-3px);
   border-color: var(--accent);
+  box-shadow: 0 12px 28px rgba(15, 118, 110, 0.25);
+}
+
+.txCard:hover .txCardIcon,
+.txCard:focus-visible .txCardIcon {
+  opacity: 1;
+  transform: translate(0, 0);
 }
 
 .txCard code {
   font-size: 13px;
   color: #7dd3c0;
+}
+
+.txCardIcon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--accent);
+  font-size: 15px;
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 /* Negotiation theater */
@@ -593,7 +630,13 @@ dd {
   background: var(--panel);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.scenarioButton:hover:not(:disabled):not(.scenarioButton--active) {
+  border-color: var(--muted);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
 }
 
 .scenarioButton strong {
@@ -614,6 +657,7 @@ dd {
 .scenarioButton--active {
   border-color: var(--accent);
   background: #edf7f5;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.12);
 }
 
 .theaterError {
@@ -636,9 +680,16 @@ dd {
   flex-wrap: wrap;
   align-items: center;
   gap: 0;
-  margin: 0 0 20px;
+  margin: 0 0 12px;
   padding: 0;
   list-style: none;
+}
+
+.theaterCaption {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .narrativeStep {
@@ -876,17 +927,10 @@ dd {
   }
 }
 
-/* Full-bleed: breaks a child out of .shell's max-width to span the full
-   viewport, while an inner wrapper (e.g. .siteHeaderInner, .heroInner) keeps
-   its actual content readably centered. Used for the header + hero so the
-   first screen reads as one immersive surface, not a card floating inside
-   a container. */
-.fullBleed {
-  position: relative;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
-}
+/* Site header + hero render as full-width siblings of .shell (not nested
+   inside it), so they span the viewport naturally with no position/vw hack
+   — each keeps its own inner wrapper (.siteHeaderInner, .heroInner) for
+   centered, width-matched content. */
 
 /* Site header */
 
@@ -1223,15 +1267,16 @@ dd {
 }
 
 @media (max-width: 900px) {
-  .siteHeader {
+  .siteHeaderInner {
     flex-wrap: wrap;
-    border-radius: 20px;
+    padding: 12px 0;
   }
 
   .siteNav {
     order: 3;
     width: 100%;
     justify-content: center;
+    gap: 18px;
   }
 
   .animatedHero {
@@ -1357,11 +1402,125 @@ dd {
   font-family: inherit;
   color: var(--ink);
   background: white;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wizardField input:hover:not(:disabled),
+.wizardField select:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.wizardField input:focus,
+.wizardField select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  outline: none;
 }
 
 .wizardField select:disabled {
   color: var(--muted);
   background: var(--bg);
+}
+
+.wizardFieldHint {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Negotiation rule groups */
+
+.ruleGroups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ruleGroup {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.ruleGroupTitle {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ruleGroup .wizardField:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .ruleGroups {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Advanced / developer-only details toggle (shared look with .rawDetails) */
+
+.advancedDetails {
+  margin-top: 4px;
+}
+
+.advancedDetails summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.advancedDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.advancedDetails summary::before {
+  content: "▸ ";
+}
+
+.advancedDetails[open] summary::before {
+  content: "▾ ";
+}
+
+.advancedDetails dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.advancedDetails dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-left: none;
+  padding-left: 0;
+  font-size: 12px;
+}
+
+.advancedDetails dt {
+  color: var(--muted);
+}
+
+.advancedDetails dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: monospace;
+  font-weight: 400;
+  word-break: break-all;
+  text-align: right;
 }
 
 .wizardFieldInput {
@@ -1378,13 +1537,6 @@ dd {
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
-}
-
-.wizardFieldGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 20px;
-  margin-bottom: 8px;
 }
 
 .wizardFieldError {
@@ -1490,7 +1642,6 @@ dd {
 }
 
 @media (max-width: 640px) {
-  .wizardFieldGrid,
   .wizardSummaryGrid {
     grid-template-columns: 1fr;
   }
@@ -1522,6 +1673,12 @@ dd {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
 }
 
 .statCard span {
@@ -1579,9 +1736,45 @@ dd {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: 8px;
   border-bottom: 1px solid var(--bg);
   font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.dashboardListItem:hover {
+  background: var(--bg);
+}
+
+.statusDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.statusDot--created {
+  background: #94a3b8;
+}
+
+.statusDot--locked {
+  background: #1d4ed8;
+}
+
+.statusDot--settling {
+  background: #92650a;
+}
+
+.statusDot--settled {
+  background: #0f7a3d;
+}
+
+.statusDot--failed {
+  background: #a13030;
 }
 
 .dashboardListItem strong {

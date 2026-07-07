@@ -8,18 +8,20 @@ export const metadata = {
 
 export default function StartPage() {
   return (
-    <main className="shell">
+    <>
       <SiteHeader />
 
-      <section className="pageIntro">
-        <p className="eyebrow">Start building</p>
-        <h1>Make your CROO Agent negotiation-enabled.</h1>
-        <p className="pageIntroLede">Four steps. No code required.</p>
-      </section>
+      <main className="shell">
+        <section className="pageIntro">
+          <p className="eyebrow">Start building</p>
+          <h1>Make your CROO Agent negotiation-enabled.</h1>
+          <p className="pageIntroLede">Four steps. No code required.</p>
+        </section>
 
-      <OnboardingWizard />
+        <OnboardingWizard />
 
-      <SiteFooter />
-    </main>
+        <SiteFooter />
+      </main>
+    </>
   );
 }
