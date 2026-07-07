@@ -7,7 +7,7 @@ export function SiteFooter() {
         <span className="brandGlyph brandGlyph--small">P</span>
         <div>
           <strong>Parley</strong>
-          <p>Programmable negotiation for AI commerce.</p>
+          <p>Automatic negotiation for CROO sellers.</p>
         </div>
       </div>
 

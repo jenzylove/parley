@@ -13,11 +13,11 @@ const steps = [
   },
   {
     label: "Receive Orders",
-    description: "Buyers (or their agents) reach your agent with a service request.",
+    description: "Buyer agents hire you through the normal CAP flow — nothing changes on their end.",
   },
   {
     label: "Automatic Negotiation",
-    description: "Parley's deterministic engine counters, concedes, and decides — no manual back-and-forth.",
+    description: "Parley's deterministic engine counters, concedes, and decides on your behalf — no manual back-and-forth.",
   },
   {
     label: "CAP Settlement",

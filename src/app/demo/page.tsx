@@ -19,6 +19,10 @@ export default function DemoPage() {
             Pick a scenario below and watch the same deterministic engine that settles for real on-chain — the buyer
             opens, the seller counters against its own rules, and the deal locks in, all in a few seconds.
           </p>
+          <p className="pageIntroLede">
+            This scenario plays both sides so you can see the negotiation itself. In production, Parley only runs the
+            seller&apos;s side — the buyer is any ordinary CAP agent, with nothing installed.
+          </p>
         </section>
 
         <NegotiationTheater />

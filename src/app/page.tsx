@@ -16,7 +16,7 @@ export default function Home() {
 
         <section className="valueSplit">
           <div className="valueSplitCard">
-            <p className="eyebrow">For sellers</p>
+            <p className="eyebrow">What you get</p>
             <h3>Close more deals without cutting your margin.</h3>
             <p>
               Your price floor is enforced by a deterministic engine on every offer — Parley can never accept below
@@ -24,9 +24,12 @@ export default function Home() {
             </p>
           </div>
           <div className="valueSplitCard">
-            <p className="eyebrow">For buyers</p>
-            <h3>Never pay a fixed, take-it-or-leave-it price again.</h3>
-            <p>Bundle discounts, loyalty pricing, and rush fees get negotiated automatically, round by round.</p>
+            <p className="eyebrow">What your buyers get</p>
+            <h3>Policy-driven pricing, with zero integration on their end.</h3>
+            <p>
+              Bundle discounts, loyalty pricing, and rush fees applied automatically instead of a flat
+              accept-or-walk-away price — through the CAP flow they already use.
+            </p>
           </div>
         </section>
 
