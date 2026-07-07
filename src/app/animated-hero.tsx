@@ -50,6 +50,10 @@ export function AnimatedHero({ finalPrice, currency }: { finalPrice: number; cur
           real through the CROO Agent Protocol on Base.
         </motion.p>
 
+        <motion.p className="heroSellerNote" variants={item}>
+          For sellers: close more deals through dynamic, policy-bounded pricing — not by cutting your margin.
+        </motion.p>
+
         <motion.div className="heroCtaRow" variants={item}>
           <a className="heroCtaPrimary" href="#theater">
             Watch a negotiation

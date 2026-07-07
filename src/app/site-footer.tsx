@@ -10,7 +10,7 @@ export function SiteFooter() {
       </div>
 
       <div className="footerLinks">
-        <a href="https://github.com" target="_blank" rel="noreferrer">
+        <a href="https://github.com/jenzylove/parley" target="_blank" rel="noreferrer">
           GitHub
         </a>
         <a href="#proof">Verified settlement</a>

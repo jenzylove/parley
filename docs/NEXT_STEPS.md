@@ -2,29 +2,25 @@
 
 ## Done this batch
 
+- **Inbound CAP provider listener** (`npm run agent:cap-provider`, `src/agents/seller/run-cap-provider-listener.ts`) — Parley's "Negotiation as a Service" listing on the CROO Agent Store now actually answers a hire. Listens for `NegotiationCreated`, runs a real signed Parley negotiation, accepts, waits for payment, delivers the signed agreement. This is what turns A2A composability from "Parley hiring itself" into real external counterparties, and mints real completed CAP orders toward the 10+ bonus. Verified live end-to-end (self-hire test): negotiate → accept → paid → delivered → completed, real `deliverTxHash`/`clearTxHash`. See `docs/CAP_INTEGRATION.md`.
+- Message signing (Ed25519) across the negotiation protocol, plus Parley platform attestation on server-synthesized `Agreement`s. See `docs/SPEC.md`'s "Signing & verification" section.
 - Seller policy registry (`/api/sellers/register`, `/api/sellers`, `/api/sellers/:id/pending`) — a buyer no longer needs the seller's policy (including its reservation price) just to start a negotiation.
 - `recurringClient` moved onto the wire (`OfferPayload`) — a seller's counter-offer strategy no longer needs out-of-band access to the buyer's private `ServiceRequest`.
 - `decideSellerMove`/`decideBuyerMove` extracted into `parley-core/negotiation/strategy.ts` — pure functions usable by the hosted one-shot demo *and* any standalone agent process.
 - `POST /api/negotiate/open` — turn-by-turn negotiation start, for a real counterparty to play the rest via `/api/negotiate/message` instead of one function resolving both sides.
-- Two standalone agent processes (`npm run agent:buyer`, `npm run agent:seller`) — genuinely separate OS processes, HTTP-only, no shared code beyond the wire protocol.
+- Three standalone agent processes (`npm run agent:buyer`, `npm run agent:seller`, `npm run agent:cap-provider`) — genuinely separate OS processes, HTTP/CAP-only, no shared code beyond the wire protocol.
 - `docs/SPEC.md` — the external-agent protocol spec, the actual deliverable behind "extract the negotiation schema into an SDK so other CAP agents can adopt it."
-- Verified live, end-to-end, against the real CAP network: `npm run agent:buyer` + `npm run agent:seller` as two separate processes reach a real `Agreement`, which flows into `CROOSettlementAdapter` through `negotiateOrder` → `acceptNegotiationWithFundAddress` → `payOrder`. Found and fixed real bugs surfaced only by this live run (see `docs/CAP_INTEGRATION.md` and `docs/ARCHITECTURE.md`): a cross-route in-memory state bug in Next.js dev (Turbopack), CAP requiring a provider to hold an active WebSocket connection, a case-sensitive address comparison bug, and a missing wait for on-chain order confirmation before paying.
-
-## Blocked on funding, not code
-
-- `payOrder` currently fails with `ERC20: transfer amount exceeds balance` — the requester agent's AA wallet has no USDC yet. This is expected (CAP has no testnet); see the README's "Enabling real CAP settlement" section. Once funded with a small amount of real USDC, the full flow above should settle end-to-end with real transaction hashes.
+- Verified live, end-to-end, against the real CAP network: `npm run agent:buyer` + `npm run agent:seller` as two separate processes reach a real `Agreement`, which flows into `CROOSettlementAdapter` through `negotiateOrder` → `acceptNegotiationWithFundAddress` → `payOrder`. Found and fixed real bugs surfaced only by this live run (see `docs/CAP_INTEGRATION.md` and `docs/ARCHITECTURE.md`): a cross-route in-memory state bug in Next.js dev (Turbopack), CAP requiring a provider to hold an active WebSocket connection, a case-sensitive address comparison bug, a missing wait for on-chain order confirmation before paying, and (found via the Vercel build) `NODE_ENV`-based test/prod detection being unreliable on platforms that force `NODE_ENV=production` for the whole build — switched to `process.env.VITEST`.
 
 ## Recommended Next
 
-- Recruit a real second party: get another team's agent (or a second machine) to run as either side of a negotiation against this one, over the network, using only `docs/SPEC.md`. This is the actual A2A composability proof — everything above just makes it *possible*.
-- Replace `run-seller-agent.ts`'s polling loop with `connectWebSocket()` (`NegotiationCreated`-equivalent event on the Parley side would need a small SSE/WebSocket layer added to the negotiate API) for near-real-time response instead of a fixed poll interval.
+- **Get the listener running persistently and recruit real hirers.** `npm run agent:cap-provider` needs to actually be running for someone to hire Parley — it's not deployed anywhere persistent yet (Vercel is serverless; this needs a long-lived process, e.g. a Railway worker service, or just running it locally during the judging window). Once it's up, reach out to other hackathon teams to hire Parley's listing — that's what turns this from "code that could handle external hires" into actual diverse A2A relationship data.
 - Auto-expire a turn-by-turn negotiation that's been idle past a session's offer `expiresAt` (currently only enforced at validation time, not proactively swept) — emit a server-authored `NoDeal` rather than leaving it open forever.
-- Sign `Agreement`/`Accept` messages with each agent's CAP wallet key (ECDSA over a canonical hash) so "machine-verifiable agreement" is literally true, not just structurally true.
 - Make the UI show the turn-by-turn flow live (poll `/api/negotiate/:id` and animate each round) instead of only rendering the one-shot `/api/negotiate/start` result.
+- Reconcile the CAP-level `fundAmount` and the Parley-level negotiated price in the inbound listener (currently intentionally decoupled — see `docs/CAP_INTEGRATION.md`) if a tighter "you get exactly what you paid for" story is wanted later.
 
 ## Later
 
 - Replace in-memory storage with SQLite.
 - Add authentication on `/api/sellers/register` (currently any caller can register any `sellerAgentId`) — fine for a hackathon demo, not for a real multi-tenant registry.
-- Run the provider side of CAP settlement as its own long-lived process listening on `connectWebSocket()` for `NegotiationCreated` events, so external CAP agents (not just Parley's own demo agents) can hire Parley for real on-chain. Today `CROOSettlementAdapter` drives both sides synchronously from one process for the CAP leg specifically (separate from the Parley-level negotiation, which now does support real separate processes — see above).
 - Add OpenAI provider behind the existing `AIProvider` interface if needed.

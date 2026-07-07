@@ -32,11 +32,42 @@ None of these are documented explicitly by CROO; all were found by running the r
 - **On-chain order confirmation is asynchronous.** `acceptNegotiationWithFundAddress`'s `createOrder` transaction is submitted, not necessarily mined, by the time the call returns — calling `payOrder` immediately can hit `INVALID_STATUS: order can only be paid when status is created` if the order is still `"creating"`. `CROOSettlementAdapter.waitForOrderCreated()` polls `getOrder` (every 1.2s, up to 20 attempts) before paying.
 - **`ERC20: transfer amount exceeds balance`** on `payOrder` means exactly what it says — the requester agent's AA wallet doesn't hold enough USDC. Not a bug; see "Enabling real CAP settlement" in the README for funding instructions (CAP has no testnet, so this is real USDC on Base mainnet, kept intentionally small).
 
-## Why one process drives both sides (for now)
+## Why `CROOSettlementAdapter` drives both sides
 
-`CROOSettlementAdapter` is constructed with two `CROOAgentClient`s — a requester client and a provider client — and both are driven from the same call to `settle()`. In this batch, Parley's own buyer and seller demo agents are also the CAP requester and provider; there is no external counterparty yet. This proves the settlement path end-to-end (real on-chain order, real escrow, real signed deliverable) without requiring a second team's agent to be online during development.
+`CROOSettlementAdapter` is constructed with two `CROOAgentClient`s — a requester client and a provider client — and both are driven from the same call to `settle()`. This is Parley's own buyer and seller demo agents acting as the CAP requester and provider, proving the settlement path end-to-end (real on-chain order, real escrow, real signed deliverable) without requiring anyone else to be online.
 
-The natural next step — tracked in `docs/NEXT_STEPS.md` — is running the provider side as a standalone process listening on `connectWebSocket()` for `NegotiationCreated` events from *any* requester, so an external CAP agent can hire Parley for real. That changes A2A composability from "two classes in this repo" to "a real second party," but does not change anything about how price bridging or settlement work.
+That's deliberately *not* the only way Parley shows up on CAP, though — see below.
+
+## The inbound provider listener: answering a real external hire
+
+`CROOSettlementAdapter` only covers Parley's *outbound* leg (Parley hiring itself, essentially). Separately, Parley is listed on the CROO Agent Store as **"Negotiation as a Service."** A listing with no code answering it is worse than no listing — `src/agents/seller/run-cap-provider-listener.ts` is that code.
+
+Run with `npm run agent:cap-provider`. It:
+
+1. Calls `connectWebSocket()` to bring the provider online (required before CAP will accept orders addressed to it — see the gotcha above), then processes any backlog (`listNegotiations({ role: "provider", status: "pending" })`) before subscribing to live `NegotiationCreated` events. Order matters: doing the backlog pass before connecting hits `PROVIDER_NOT_ACCEPTING_ORDERS`.
+2. For each inbound negotiation addressed to Parley's `serviceId`: parses the requester's `requirements` string as an optional partial `ServiceRequest` (service, items, target/max price, delivery days, recurring flag) — anything missing or invalid falls back to defaults that reliably reach agreement on the buyer's opening offer, so a bare hire with no `requirements` at all still completes.
+3. Runs a **real** Parley negotiation (`runNegotiation`, the same deterministic engine as everywhere else in this repo) between the parsed request and a dedicated reference seller policy (`seller-agent-parley-hire`), producing a signed, platform-attested `Agreement` — or a `NoDeal`, in which case the CAP negotiation is rejected with the reason.
+4. Accepts the CAP negotiation (`acceptNegotiationWithFundAddress`), waits for on-chain order confirmation, then waits (up to 10 minutes) for the external requester to call `payOrder` on their own schedule.
+5. On payment, delivers the full signed `Agreement` + session as a `"schema"` deliverable via `deliverOrder` — the negotiated, verifiable agreement *is* the product being sold.
+
+**The CAP-level price and the Parley-level price are deliberately decoupled.** The hirer's `fundAmount` (declared at `negotiateOrder` time) is what they pay for *the negotiation service itself* — CAP has no mechanism for a provider to change that after the fact. The number inside the delivered `Agreement.finalOffer.price` is whatever Parley's engine actually negotiated between the parsed request and `hireSellerPolicy`, which can differ from `fundAmount`. This is intentional: you're paying Parley to run a negotiation and hand you a verifiable result, not buying the specific dollar amount written inside it.
+
+Verified live end-to-end against the real CAP network (self-hire test): negotiate → accept → on-chain order created → paid → **delivered → completed**, with real `deliverTxHash` and `clearTxHash`.
+
+### Hiring Parley: the `requirements` contract
+
+```json
+{
+  "service": "Landing page copy",
+  "requestedItems": ["headline set", "feature bullets"],
+  "targetPrice": 40,
+  "maxPrice": 58,
+  "desiredDeliveryDays": 5,
+  "recurringClient": false
+}
+```
+
+All fields optional; the listener fills in sensible defaults for anything missing or malformed. Send this as the CAP negotiation's `requirements` string when calling `negotiateOrder` against Parley's `serviceId`.
 
 ## Testing without live CAP credentials
 

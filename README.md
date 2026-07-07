@@ -4,6 +4,8 @@ A structured, machine-verifiable negotiation layer for the [CROO Agent Protocol 
 
 CAP's own negotiation step is take-it-or-leave-it: a requester asks for a service at its registered price, and a provider accepts or rejects. Parley sits in front of that step and runs a deterministic, multi-round, policy-bounded negotiation between a buyer and a seller agent — counteroffers, rush fees, bundle discounts, round limits, a hard `NO DEAL` outcome — and only then bridges the agreed price onto a real CAP order for on-chain settlement.
 
+**For sellers:** Parley closes more deals through dynamic, policy-bounded pricing — not by cutting your margin. Your `minimumPrice`/`preferredPrice` floor is enforced by the deterministic engine on every offer; Parley can never accept below it.
+
 Built for the CROO Hackathon.
 
 ## Quick start
@@ -30,6 +32,7 @@ Copy `.env.example` to `.env` to configure either.
 - **REST API** (`src/app/api/negotiate/*`, `src/app/api/sellers/*`) — `negotiate/start` (one-shot), `negotiate/open` + `negotiate/message` (turn-by-turn, for a real counterparty), `sellers/register`, `sellers` (discovery), `sellers/:id/pending`, all versioned with `protocolVersion`. Full spec: `docs/SPEC.md`.
 - **A2A demo agents** (`src/agents/a2a`) — `BuyerAgent`, `SellerAgent`, `ObserverAgent`, each talking only to the public HTTP API, never importing the engine directly.
 - **Standalone agent processes** (`npm run agent:seller`, `npm run agent:buyer`) — a real second and third OS process, decoupled from the Next.js server, driving a negotiation turn-by-turn over HTTP only. This is the actual proof of A2A composability: either script could be replaced by a different team's agent in a different language, as long as it speaks `docs/SPEC.md`.
+- **Inbound CAP provider listener** (`npm run agent:cap-provider`, `src/agents/seller/run-cap-provider-listener.ts`) — answers a real external hire of Parley's "Negotiation as a Service" listing on the CROO Agent Store: listens for `NegotiationCreated`, runs a real signed Parley negotiation, accepts, waits for payment, delivers the signed agreement as the CAP deliverable. See [SDK methods used](#sdk-methods-used) and `docs/CAP_INTEGRATION.md`.
 
 Full protocol/architecture docs: [`docs/SPEC.md`](docs/SPEC.md) (external agent spec), [`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CAP_INTEGRATION.md`](docs/CAP_INTEGRATION.md).
 
@@ -44,19 +47,29 @@ npm run agent:seller   # terminal 3 — registers a policy, responds to pending 
 
 Each process only ever calls the public HTTP API — neither imports the negotiation engine or the other's code. Run them in either order; both poll until the negotiation resolves.
 
+## Answering a real hire on CAP
+
+```bash
+npm run agent:cap-provider
+```
+
+This is a long-running process — it needs to actually be running for someone to hire Parley's "Negotiation as a Service" listing on the CROO Agent Store (it is not deployed anywhere persistent by default; Vercel is serverless, so run this locally or on a persistent worker, e.g. a Railway service). On startup it catches up on any backlog of pending negotiations, then listens live. See "Hiring Parley" in `docs/CAP_INTEGRATION.md` for the `requirements` JSON a hirer can send.
+
 ## SDK methods used
 
-Integration is via [`@croo-network/sdk`](https://www.npmjs.com/package/@croo-network/sdk) (`AgentClient`), in `src/cap/croo-settlement-adapter.ts`:
+Integration is via [`@croo-network/sdk`](https://www.npmjs.com/package/@croo-network/sdk) (`AgentClient`):
 
 | Method | Called by | Purpose |
 |---|---|---|
-| `negotiateOrder` | requester | Opens a CAP negotiation, carrying Parley's already-agreed price as `fundAmount`/`fundToken` (see below) |
-| `acceptNegotiationWithFundAddress` | provider | Accepts the negotiation and declares the receiving wallet — triggers CAP's on-chain `createOrder` tx |
-| `payOrder` | requester | Locks the agreed USDC into `CAPVault` escrow |
-| `deliverOrder` | provider | Submits the locked terms + delivery proof as a `"schema"` deliverable |
-| `getDelivery` | requester | Confirms the deliverable is retrievable |
-
-`connectWebSocket` / `NegotiationCreated` etc. are not used in this batch — the current adapter drives both requester and provider synchronously from one process (Parley plays both sides of its own demo negotiation). Listening for external negotiations over WebSocket is the natural next step for third-party A2A composability; see `docs/NEXT_STEPS.md`.
+| `negotiateOrder` | requester (`croo-settlement-adapter.ts`) | Opens a CAP negotiation, carrying Parley's already-agreed price as `fundAmount`/`fundToken` (see below) |
+| `acceptNegotiationWithFundAddress` | provider (`croo-settlement-adapter.ts`, `run-cap-provider-listener.ts`) | Accepts the negotiation and declares the receiving wallet — triggers CAP's on-chain `createOrder` tx |
+| `payOrder` | requester (`croo-settlement-adapter.ts`) | Locks the agreed USDC into `CAPVault` escrow |
+| `deliverOrder` | provider (`croo-settlement-adapter.ts`, `run-cap-provider-listener.ts`) | Submits the locked terms + delivery proof (or negotiated agreement) as a `"schema"` deliverable |
+| `getDelivery` | requester (`croo-settlement-adapter.ts`) | Confirms the deliverable is retrievable |
+| `connectWebSocket` / `NegotiationCreated` | provider (`run-cap-provider-listener.ts`) | Brings the provider online and listens for inbound hires from *any* external requester |
+| `listNegotiations` | provider (`run-cap-provider-listener.ts`) | Catches up on pending negotiations that arrived before the listener started |
+| `rejectNegotiation` | provider (`run-cap-provider-listener.ts`) | Declines a hire with no usable `fundAmount`, or whose parsed terms end in `NoDeal` |
+| `getOrder` | provider (`run-cap-provider-listener.ts`) | Polls for on-chain order confirmation and payment before delivering |
 
 ## Integration notes
 

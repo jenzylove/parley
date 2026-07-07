@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 const navLinks = [
   { label: "Protocol", href: "#proof" },
   { label: "Try it", href: "#theater" },
-  { label: "Spec", href: "https://github.com", external: true },
+  { label: "Spec", href: "https://github.com/jenzylove/parley/blob/main/docs/SPEC.md", external: true },
 ];
 
 export function SiteHeader() {

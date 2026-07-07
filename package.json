@@ -10,7 +10,8 @@
     "test": "vitest run",
     "cap:smoke": "node --env-file=.env scripts/cap-smoke-test.mjs",
     "agent:seller": "tsx src/agents/seller/run-seller-agent.ts",
-    "agent:buyer": "tsx src/agents/buyer/run-buyer-agent.ts"
+    "agent:buyer": "tsx src/agents/buyer/run-buyer-agent.ts",
+    "agent:cap-provider": "tsx src/agents/seller/run-cap-provider-listener.ts"
   },
   "dependencies": {
     "@croo-network/sdk": "^0.2.1",
