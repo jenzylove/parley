@@ -23,9 +23,12 @@ export type OnboardingRequest = {
  * keypair server-side (there's no per-account custody model yet — this is
  * the same "Parley holds the key for you" simplification sample-seller.ts
  * and the demo scenarios already use) and registers a real SellerPolicy via
- * the same registry every negotiation checks against. Nothing about this is
- * simulated; a negotiation started against this sellerAgentId right after
- * onboarding is a genuine one.
+ * the same registry every negotiation checks against. No CAP credentials
+ * are collected or verified here — this step only configures the policy.
+ * Going live against real CAP happens by running the standalone provider
+ * listener locally with your own CROO credentials (see /start's success
+ * screen), which is what actually proves ownership: only a real, working
+ * key can connect to CAP at all.
  */
 export async function POST(request: Request) {
   try {

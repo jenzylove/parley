@@ -11,11 +11,21 @@
 // signed agreement as the CAP deliverable. Every completed hire is a real
 // external counterparty and a real completed CAP order.
 //
+// The negotiation policy itself is fetched at startup from Parley's own
+// server (whatever you configured via the /start wizard), not hardcoded —
+// this is what actually connects a seller's real CROO agent to Parley: you
+// run this process yourself, with your own CROO credentials, which never
+// touch Parley's website at all. Only a real, working credential can
+// connect to CAP in the first place, which is the real proof of ownership.
+//
 // Run with: npm run agent:cap-provider
 //
-// Env (reuses the same vars as the outbound CAP settlement adapter):
+// Env:
 //   CROO_API_URL, CROO_WS_URL, CROO_PROVIDER_SDK_KEY, CROO_SERVICE_ID,
-//   CROO_PROVIDER_WALLET_ADDRESS
+//   CROO_PROVIDER_WALLET_ADDRESS  (your own real CROO credentials)
+//   PARLEY_SELLER_AGENT_ID        (the agent name you registered in /start)
+//   PARLEY_BASE_URL               default http://localhost:3000
+//   PARLEY_INTERNAL_KEY           must match the server's PARLEY_INTERNAL_KEY
 
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -44,7 +54,14 @@ function loadDotEnv(path: string): void {
 
 loadDotEnv(new URL("../../../.env", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 
-const requiredEnv = ["CROO_API_URL", "CROO_PROVIDER_SDK_KEY", "CROO_SERVICE_ID", "CROO_PROVIDER_WALLET_ADDRESS"] as const;
+const requiredEnv = [
+  "CROO_API_URL",
+  "CROO_PROVIDER_SDK_KEY",
+  "CROO_SERVICE_ID",
+  "CROO_PROVIDER_WALLET_ADDRESS",
+  "PARLEY_SELLER_AGENT_ID",
+  "PARLEY_INTERNAL_KEY",
+] as const;
 const missing = requiredEnv.filter((key) => !process.env[key]);
 if (missing.length > 0) {
   console.error(`[cap-provider] missing required env vars: ${missing.join(", ")}`);
@@ -55,33 +72,31 @@ const config = { baseURL: process.env.CROO_API_URL!, wsURL: process.env.CROO_WS_
 const provider = new AgentClient(config, process.env.CROO_PROVIDER_SDK_KEY!);
 const serviceId = process.env.CROO_SERVICE_ID!;
 const providerWalletAddress = process.env.CROO_PROVIDER_WALLET_ADDRESS!;
+const parleyBaseUrl = process.env.PARLEY_BASE_URL ?? "http://localhost:3000";
+const parleySellerAgentId = process.env.PARLEY_SELLER_AGENT_ID!;
 
-// A distinct identity from both the real-settlement demo seller
-// (sample-seller.ts, tiny prices to fit a real wallet) and the free mock
-// theater (scenarios.ts) — this is the reference seller every external hire
-// gets negotiated against. Prices are realistic demo numbers; they never
-// move real funds themselves (the CAP-level price is whatever the hirer
-// already declared as fundAmount — this policy only shapes the *negotiated
-// terms inside the delivered agreement*, which is the product being sold).
-const sellerKeys = generateAgentKeyPair();
 const platformKeys = generateAgentKeyPair();
 
-const hireSellerPolicy: SellerPolicy = {
-  sellerAgentId: "seller-agent-parley-hire",
-  publicKey: sellerKeys.publicKey,
-  service: "Launch landing page copy",
-  currency: "USDC",
-  minimumPrice: 44,
-  preferredPrice: 64,
-  standardDeliveryDays: 5,
-  rushFee: 8,
-  bundleDiscount: 10,
-  recurringClientDiscount: 4,
-  maximumWorkload: 6,
-  currentWorkload: 3,
-  preferredPaymentSchedule: "upfront",
-  maxRounds: 3,
-};
+/**
+ * Fetches the negotiation policy you configured on Parley's website. Your
+ * CROO credentials above never leave this machine; this call only carries
+ * your PARLEY_INTERNAL_KEY (a shared secret between your own .env and
+ * Parley's) to the Parley server you already control.
+ */
+async function fetchSellerPolicy(sellerAgentId: string): Promise<SellerPolicy> {
+  const response = await fetch(`${parleyBaseUrl}/api/sellers/${encodeURIComponent(sellerAgentId)}/policy`, {
+    headers: { "x-parley-key": process.env.PARLEY_INTERNAL_KEY! },
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    throw new Error(`could not fetch policy for "${sellerAgentId}" from ${parleyBaseUrl}: ${JSON.stringify(body)}`);
+  }
+
+  return body.policy as SellerPolicy;
+}
+
+let hireSellerPolicy: SellerPolicy;
 
 /**
  * A hirer may optionally describe what to negotiate via the CAP
@@ -222,6 +237,11 @@ async function catchUpOnBacklog(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log(`[cap-provider] starting for service ${serviceId}...`);
+
+  hireSellerPolicy = await fetchSellerPolicy(parleySellerAgentId);
+  console.log(
+    `[cap-provider] loaded policy for "${parleySellerAgentId}": floor ${hireSellerPolicy.minimumPrice} ${hireSellerPolicy.currency}, preferred ${hireSellerPolicy.preferredPrice} ${hireSellerPolicy.currency}`,
+  );
 
   // CAP requires the provider to have an active WebSocket connection before
   // it will accept new orders addressed to it (PROVIDER_NOT_ACCEPTING_ORDERS

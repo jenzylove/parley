@@ -1615,6 +1615,28 @@ dd {
   line-height: 1.55;
 }
 
+.wizardGoLive {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wizardGoLive h3 {
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.wizardCodeBlock {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--code);
+  color: #d7f9ef;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
 .wizardSummaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

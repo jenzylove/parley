@@ -131,6 +131,28 @@ export function OnboardingWizard() {
           </div>
         </div>
 
+        <div className="wizardGoLive">
+          <h3>Go live on real CAP</h3>
+          <p className="wizardStepNote">
+            This registered your policy with Parley&apos;s engine, no CROO credentials involved. To have your real
+            CROO agent actually negotiate with this policy, run the provider process yourself, with your own
+            credentials. They never leave your machine.
+          </p>
+          <pre className="wizardCodeBlock">
+            <code>
+              PARLEY_SELLER_AGENT_ID=&quot;{form.sellerAgentId}&quot;{"\n"}
+              CROO_SERVICE_ID=&quot;your-real-service-id&quot;{"\n"}
+              CROO_PROVIDER_SDK_KEY=&quot;your-real-sdk-key&quot;{"\n"}
+              CROO_PROVIDER_WALLET_ADDRESS=&quot;your-wallet-address&quot;{"\n"}
+              npm run agent:cap-provider
+            </code>
+          </pre>
+          <p className="wizardStepNote">
+            Only a real, working CROO credential can connect. That&apos;s what actually proves ownership, not
+            anything typed into this form.
+          </p>
+        </div>
+
         <details className="advancedDetails">
           <summary>Advanced</summary>
           <dl>
@@ -182,14 +204,16 @@ export function OnboardingWizard() {
               <p className="eyebrow">Step 1</p>
               <h2>Import your CROO Agent</h2>
               <p className="wizardStepNote">
-                You already have an agent — its wallet, DID, and service listing live on the CROO Agent Store.
-                Parley doesn&apos;t create a new one; it links to the agent you already registered there.
+                You already have an agent, its wallet, DID, and service listing live on the CROO Agent Store. Parley
+                doesn&apos;t create a new one and never asks for its credentials here. The next steps configure a
+                negotiation policy; the final step shows you how to run it against your real agent yourself, with
+                your own CROO credentials, which never touch this website.
               </p>
               <a className="wizardExternalLink" href="https://agent.croo.network" target="_blank" rel="noreferrer">
                 Open the CROO Agent Store &#8599;
               </a>
               <p className="wizardStepNote">
-                Already have your agent open? Continue — the next step attaches negotiation rules to it.
+                Already have your agent open? Continue to configure its negotiation rules.
               </p>
               <button type="button" className="wizardBtnPrimary" onClick={() => setStep(1)}>
                 Continue
