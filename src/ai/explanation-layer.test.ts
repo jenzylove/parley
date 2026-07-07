@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { sampleBuyerRequest } from "../agents/buyer/sample-buyer";
 import { sampleSellerPolicy } from "../agents/seller/sample-seller";
-import { runNegotiation } from "../core/parley-core";
-import { createPublicNegotiationContext, createPublicSellerTerms } from "./explanation-layer";
+import { runNegotiation, toPublicSellerTerms } from "../core/parley-core";
+import { createPublicNegotiationContext } from "./explanation-layer";
 
 describe("AI explanation layer safety", () => {
   it("does not include seller private price constraints in public context", () => {
@@ -16,20 +16,20 @@ describe("AI explanation layer safety", () => {
     expect(serialized).not.toContain(String(sampleSellerPolicy.preferredPrice));
   });
 
-  it("exposes only public seller terms for display", () => {
-    expect(createPublicSellerTerms(sampleSellerPolicy)).toEqual({
+  it("exposes only public, price-free seller terms for discovery", () => {
+    const publicTerms = toPublicSellerTerms(sampleSellerPolicy);
+    const serialized = JSON.stringify(publicTerms);
+
+    expect(publicTerms).toEqual({
+      sellerAgentId: sampleSellerPolicy.sellerAgentId,
       service: sampleSellerPolicy.service,
       currency: sampleSellerPolicy.currency,
-      minimumPrice: sampleSellerPolicy.minimumPrice,
-      preferredPrice: sampleSellerPolicy.preferredPrice,
       standardDeliveryDays: sampleSellerPolicy.standardDeliveryDays,
-      rushFee: sampleSellerPolicy.rushFee,
-      bundleDiscount: sampleSellerPolicy.bundleDiscount,
-      recurringClientDiscount: sampleSellerPolicy.recurringClientDiscount,
-      maximumWorkload: sampleSellerPolicy.maximumWorkload,
-      currentWorkload: sampleSellerPolicy.currentWorkload,
-      preferredPaymentSchedule: sampleSellerPolicy.preferredPaymentSchedule,
       maxRounds: sampleSellerPolicy.maxRounds,
     });
+    expect(serialized).not.toContain("minimumPrice");
+    expect(serialized).not.toContain("preferredPrice");
+    expect(serialized).not.toContain(String(sampleSellerPolicy.minimumPrice));
+    expect(serialized).not.toContain(String(sampleSellerPolicy.preferredPrice));
   });
 });

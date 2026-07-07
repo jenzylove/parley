@@ -1,0 +1,25 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgProvider" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16305F"/>
+      <stop offset="100%" stop-color="#081327"/>
+    </linearGradient>
+    <mask id="bowlMaskProvider">
+      <rect x="196" y="120" width="192" height="156" rx="78" fill="#FFFFFF"/>
+      <rect x="250" y="163" width="88" height="70" rx="35" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#bgProvider)"/>
+
+  <!-- "P" monogram: stem + bowl-with-hole -->
+  <rect x="196" y="120" width="54" height="270" rx="14" fill="#FFFFFF"/>
+  <rect x="196" y="120" width="192" height="156" rx="78" fill="#FFFFFF" mask="url(#bowlMaskProvider)"/>
+
+  <!-- Provider badge: checkmark (this agent fulfills/delivers) -->
+  <circle cx="400" cy="400" r="58" fill="#FFFFFF"/>
+  <path
+    d="M374,401 L392,419 L428,381"
+    stroke="#0B1E3D" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"
+  />
+</svg>

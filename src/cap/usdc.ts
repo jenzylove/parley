@@ -7,3 +7,8 @@ const USDC_DECIMALS = 6;
 export function usdcToBaseUnits(price: number): string {
   return Math.round(price * 10 ** USDC_DECIMALS).toString();
 }
+
+/** Ethereum addresses are case-insensitive; mixed-case is only an optional EIP-55 checksum encoding. */
+export function sameAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}

@@ -37,6 +37,7 @@ const agreement: AgreementMessage = {
       paymentSchedule: "upfront",
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
       round: 2,
+      recurringClient: false,
     },
     acceptedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -68,6 +69,7 @@ function fakeClient(overrides: Partial<CROOAgentClient> = {}): CROOAgentClient {
   return {
     negotiateOrder: vi.fn(),
     acceptNegotiationWithFundAddress: vi.fn(),
+    getOrder: vi.fn(async (orderId: string) => ({ orderId, status: "created" }) as Awaited<ReturnType<CROOAgentClient["getOrder"]>>),
     payOrder: vi.fn(),
     deliverOrder: vi.fn(),
     getDelivery: vi.fn(),
@@ -78,6 +80,7 @@ function fakeClient(overrides: Partial<CROOAgentClient> = {}): CROOAgentClient {
 describe("CROOSettlementAdapter", () => {
   it("bridges the Parley-negotiated price onto a CAP order via fund-transfer negotiation", async () => {
     const expectedFundAmount = usdcToBaseUnits(lockedTerms.price);
+    let orderPaid = false;
 
     const requester = fakeClient({
       negotiateOrder: vi.fn(async (req: NegotiateOrderRequest): Promise<Negotiation> => ({
@@ -95,10 +98,17 @@ describe("CROOSettlementAdapter", () => {
         fundAmount: req.fundAmount,
         fundToken: req.fundToken,
       })),
-      payOrder: vi.fn(async (orderId: string): Promise<PayOrderResult> => ({
-        order: { orderId } as PayOrderResult["order"],
-        txHash: "0xpay",
-      })),
+      getOrder: vi.fn(
+        async (orderId: string) =>
+          ({ orderId, status: orderPaid ? "paid" : "created" }) as Awaited<ReturnType<CROOAgentClient["getOrder"]>>,
+      ),
+      payOrder: vi.fn(async (orderId: string): Promise<PayOrderResult> => {
+        orderPaid = true;
+        return {
+          order: { orderId } as PayOrderResult["order"],
+          txHash: "0xpay",
+        };
+      }),
       getDelivery: vi.fn(async (): Promise<Delivery> => ({
         deliveryId: "delivery_1",
         orderId: "cap_order_1",

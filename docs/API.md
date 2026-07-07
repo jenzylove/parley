@@ -4,9 +4,60 @@ Protocol version: `parley-negotiation/0.1`
 
 All responses include `protocolVersion`. Request and response bodies use Parley protocol objects directly, not UI-specific payloads.
 
-## Start Negotiation
+See `docs/SPEC.md` for the full wire-level spec, non-leakage guarantees, and how to write a conforming external agent.
+
+## Register a Seller
+
+`POST /api/sellers/register`
+
+A seller's policy is registered with Parley once and is **never** sent to a buyer.
+
+Request: a full `SellerPolicy` object.
+
+```json
+{
+  "sellerAgentId": "seller-agent-copywriter",
+  "service": "Launch landing page copy",
+  "currency": "USDC",
+  "minimumPrice": 44,
+  "preferredPrice": 64,
+  "standardDeliveryDays": 5,
+  "rushFee": 8,
+  "bundleDiscount": 10,
+  "recurringClientDiscount": 4,
+  "maximumWorkload": 6,
+  "currentWorkload": 3,
+  "preferredPaymentSchedule": "upfront",
+  "maxRounds": 3
+}
+```
+
+Response:
+
+```json
+{ "protocolVersion": "parley-negotiation/0.1", "sellerAgentId": "seller-agent-copywriter" }
+```
+
+## Discover Sellers
+
+`GET /api/sellers`
+
+No price fields — safe for any buyer or agent to call.
+
+```json
+{
+  "protocolVersion": "parley-negotiation/0.1",
+  "sellers": [
+    { "sellerAgentId": "seller-agent-copywriter", "service": "Launch landing page copy", "currency": "USDC", "standardDeliveryDays": 5, "maxRounds": 3 }
+  ]
+}
+```
+
+## Start Negotiation (one-shot reference resolution)
 
 `POST /api/negotiate/start`
+
+Resolves an entire negotiation synchronously using Parley's own reference strategies for both sides. The buyer references the seller by id only — never submits its policy.
 
 Request:
 
@@ -20,19 +71,10 @@ Request:
     "targetPrice": 46,
     "maxPrice": 58,
     "currency": "USDC",
-    "desiredDeliveryDays": 3
+    "desiredDeliveryDays": 3,
+    "recurringClient": true
   },
-  "policy": {
-    "sellerAgentId": "seller-agent-copywriter",
-    "service": "Launch landing page copy",
-    "currency": "USDC",
-    "minimumPrice": 44,
-    "preferredPrice": 64,
-    "standardDeliveryDays": 5,
-    "rushFee": 8,
-    "bundleDiscount": 10,
-    "maxRounds": 3
-  }
+  "sellerAgentId": "seller-agent-copywriter"
 }
 ```
 
@@ -129,9 +171,46 @@ Response:
 }
 ```
 
+## Open Negotiation (turn-by-turn, for a real counterparty)
+
+`POST /api/negotiate/open`
+
+Records only the buyer's opening offer — does not auto-resolve. Meant for two separate processes (see `npm run agent:buyer` / `npm run agent:seller`) to play out the rest via repeated calls to `/api/negotiate/message`.
+
+Request: `{ "request": ServiceRequest, "sellerAgentId": string, "openingOffer": OfferMessage }`. Unlike `/start`, the buyer must build and sign `openingOffer` itself (own `negotiationId`, own Ed25519 key — see `docs/SPEC.md`'s "Signing & verification") and the server verifies it against `request.buyerPublicKey` before opening the session.
+
+Response:
+
+```json
+{
+  "protocolVersion": "parley-negotiation/0.1",
+  "session": {
+    "negotiationId": "negotiation_abc123",
+    "buyerAgentId": "buyer-agent-demo",
+    "sellerAgentId": "seller-agent-copywriter",
+    "currentRound": 1,
+    "maxRounds": 3,
+    "currentState": "awaiting_seller_response",
+    "messageHistory": []
+  }
+}
+```
+
+## Pending Negotiations For a Seller
+
+`GET /api/sellers/:sellerAgentId/pending`
+
+Lets a standalone seller process discover its own pending work without an out-of-band `negotiationId`.
+
+```json
+{ "protocolVersion": "parley-negotiation/0.1", "sellerAgentId": "seller-agent-copywriter", "negotiationIds": ["negotiation_abc123"] }
+```
+
 ## Submit Protocol Message
 
 `POST /api/negotiate/message`
+
+Submits your own next move. When the message is a valid `Accept`, the server synthesizes the `Agreement` and runs commerce/settlement immediately — the response reflects the finished order.
 
 Request:
 
@@ -152,7 +231,8 @@ Request:
       "bundleItems": ["headline set", "feature bullets"],
       "paymentSchedule": "upfront",
       "expiresAt": "2026-07-05T18:30:00.000Z",
-      "round": 2
+      "round": 2,
+      "recurringClient": true
     }
   }
 }
@@ -220,7 +300,8 @@ Response:
         "negotiationId": "negotiation_abc123",
         "price": 46,
         "currency": "USDC",
-        "round": 1
+        "round": 1,
+        "recurringClient": true
       }
     }
   ]

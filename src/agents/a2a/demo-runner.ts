@@ -1,3 +1,4 @@
+import { toPublicSellerTerms } from "@/core/parley-core";
 import { sampleBuyerRequest } from "../buyer/sample-buyer";
 import { sampleSellerPolicy } from "../seller/sample-seller";
 import { BuyerAgent } from "./buyer-agent";
@@ -9,10 +10,11 @@ import type { A2ADemoResult } from "./types";
 export async function runA2ADemo(baseUrl: string): Promise<A2ADemoResult> {
   const parley = new HttpParleyApiClient(baseUrl);
   const buyer = new BuyerAgent(sampleBuyerRequest.buyerAgentId, sampleBuyerRequest, parley);
-  const seller = new SellerAgent(sampleSellerPolicy.sellerAgentId, sampleSellerPolicy);
+  const seller = new SellerAgent(sampleSellerPolicy.sellerAgentId, sampleSellerPolicy, parley);
   const observer = new ObserverAgent("observer-agent-demo", parley);
 
-  const negotiation = await buyer.negotiateWith(seller.publishPolicy());
+  await seller.register();
+  const negotiation = await buyer.negotiateWith(seller.identity.agentId);
   const negotiationId = negotiation.result.session.negotiationId;
   const [session, history, observerSummary] = await Promise.all([
     parley.getSession(negotiationId),
@@ -25,7 +27,7 @@ export async function runA2ADemo(baseUrl: string): Promise<A2ADemoResult> {
     sellerAgent: seller.identity,
     observerAgent: observer.identity,
     request: buyer.getRequest(),
-    sellerPolicy: seller.publishPolicy(),
+    sellerPublicTerms: toPublicSellerTerms(seller.getPolicy()),
     negotiation,
     session,
     history,

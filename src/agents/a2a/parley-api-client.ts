@@ -15,11 +15,21 @@ async function readJson<T>(response: Response): Promise<T> {
 export class HttpParleyApiClient implements ParleyApiClient {
   constructor(private readonly baseUrl: string) {}
 
-  async startNegotiation(request: ServiceRequest, policy: SellerPolicy): Promise<NegotiationResponse> {
+  async registerSeller(policy: SellerPolicy): Promise<{ sellerAgentId: string }> {
+    const response = await fetch(`${this.baseUrl}/api/sellers/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(policy),
+    });
+
+    return readJson<{ sellerAgentId: string }>(response);
+  }
+
+  async startNegotiation(request: ServiceRequest, sellerAgentId: string): Promise<NegotiationResponse> {
     const response = await fetch(`${this.baseUrl}/api/negotiate/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ request, policy }),
+      body: JSON.stringify({ request, sellerAgentId }),
     });
 
     return readJson<NegotiationResponse>(response);

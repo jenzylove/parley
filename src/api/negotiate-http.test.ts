@@ -6,13 +6,19 @@ import { BuyerAgent } from "../agents/a2a/buyer-agent";
 import { HttpParleyApiClient } from "../agents/a2a/parley-api-client";
 import { ObserverAgent } from "../agents/a2a/observer-agent";
 import { SellerAgent } from "../agents/a2a/seller-agent";
+import { buildAcceptMessage, buildNoDealMessage, createOpeningOffer, generateAgentKeyPair } from "../core/parley-core";
+import type { NegotiationSession, OfferMessage } from "../core/parley-core";
+import { decideBuyerMove, decideSellerMove } from "../core/parley-core";
 import {
   applyNegotiationMessage,
   getNegotiationHistory,
   getNegotiationSession,
+  getPendingForSeller,
+  openNegotiation,
   startNegotiation,
   versionedError,
 } from "./negotiate-service";
+import { registerSellerPolicy, listPublicSellers, clearSellerRegistryForTests } from "./seller-registry";
 import { clearNegotiationsForTests } from "./store";
 import { PROTOCOL_VERSION } from "./protocol-version";
 
@@ -37,13 +43,44 @@ function createProtocolTestServer() {
     const path = url.pathname;
 
     try {
+      if (request.method === "POST" && path === "/api/sellers/register") {
+        const policy = await readJson(request);
+        const validation = registerSellerPolicy(policy);
+        writeJson(
+          response,
+          validation.ok ? 200 : 400,
+          validation.ok
+            ? { protocolVersion: PROTOCOL_VERSION, sellerAgentId: policy.sellerAgentId }
+            : versionedError(validation.errors.join("; ")),
+        );
+        return;
+      }
+
+      if (request.method === "GET" && path === "/api/sellers") {
+        writeJson(response, 200, { protocolVersion: PROTOCOL_VERSION, sellers: listPublicSellers() });
+        return;
+      }
+
+      const pendingMatch = path.match(/^\/api\/sellers\/([^/]+)\/pending$/);
+      if (request.method === "GET" && pendingMatch) {
+        writeJson(response, 200, getPendingForSeller(pendingMatch[1]));
+        return;
+      }
+
       if (request.method === "POST" && path === "/api/negotiate/start") {
-        writeJson(response, 200, await startNegotiation(await readJson(request)));
+        const body = await startNegotiation(await readJson(request));
+        writeJson(response, "error" in body ? 400 : 200, body);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/api/negotiate/open") {
+        const body = openNegotiation(await readJson(request));
+        writeJson(response, "error" in body ? 400 : 200, body);
         return;
       }
 
       if (request.method === "POST" && path === "/api/negotiate/message") {
-        const body = applyNegotiationMessage(await readJson(request));
+        const body = await applyNegotiationMessage(await readJson(request));
         writeJson(response, "error" in body ? 400 : 200, body);
         return;
       }
@@ -86,6 +123,8 @@ describe("negotiation protocol HTTP API", () => {
 
   beforeEach(async () => {
     clearNegotiationsForTests();
+    clearSellerRegistryForTests();
+    registerSellerPolicy(sampleSellerPolicy);
     server = createProtocolTestServer();
     baseUrl = await listen(server);
   });
@@ -100,7 +139,7 @@ describe("negotiation protocol HTTP API", () => {
     const response = await fetch(`${baseUrl}/api/negotiate/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ request: sampleBuyerRequest, policy: sampleSellerPolicy }),
+      body: JSON.stringify({ request: sampleBuyerRequest, sellerAgentId: sampleSellerPolicy.sellerAgentId }),
     });
     const body = await response.json();
 
@@ -114,11 +153,46 @@ describe("negotiation protocol HTTP API", () => {
     expect(body.result.agreement.payload.policyExplanation.constraintsApplied.length).toBeGreaterThan(0);
   });
 
+  it("rejects starting a negotiation against an unregistered seller", async () => {
+    const response = await fetch(`${baseUrl}/api/negotiate/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ request: sampleBuyerRequest, sellerAgentId: "seller-nobody-registered" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("not registered");
+  });
+
+  it("never requires the seller's policy in a buyer-facing request, and discovery listings carry no price fields", async () => {
+    const sellersResponse = await fetch(`${baseUrl}/api/sellers`);
+    const sellersBody = await sellersResponse.json();
+    const serializedDiscovery = JSON.stringify(sellersBody);
+
+    expect(serializedDiscovery).not.toContain("minimumPrice");
+    expect(serializedDiscovery).not.toContain("preferredPrice");
+    expect(serializedDiscovery).not.toContain(String(sampleSellerPolicy.minimumPrice));
+
+    // Starting a negotiation only ever requires a sellerAgentId reference — never the policy itself.
+    const startRequestBody = { request: sampleBuyerRequest, sellerAgentId: sampleSellerPolicy.sellerAgentId };
+    expect(startRequestBody).not.toHaveProperty("policy");
+    expect(JSON.stringify(startRequestBody)).not.toContain("minimumPrice");
+
+    const startResponse = await fetch(`${baseUrl}/api/negotiate/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(startRequestBody),
+    });
+
+    expect(startResponse.status).toBe(200);
+  });
+
   it("reads a negotiation and its history through HTTP", async () => {
     const startResponse = await fetch(`${baseUrl}/api/negotiate/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ request: sampleBuyerRequest, policy: sampleSellerPolicy }),
+      body: JSON.stringify({ request: sampleBuyerRequest, sellerAgentId: sampleSellerPolicy.sellerAgentId }),
     });
     const started = await startResponse.json();
     const negotiationId = started.result.session.negotiationId;
@@ -138,7 +212,7 @@ describe("negotiation protocol HTTP API", () => {
     const startResponse = await fetch(`${baseUrl}/api/negotiate/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ request: sampleBuyerRequest, policy: sampleSellerPolicy }),
+      body: JSON.stringify({ request: sampleBuyerRequest, sellerAgentId: sampleSellerPolicy.sellerAgentId }),
     });
     const started = await startResponse.json();
     const negotiationId = started.result.session.negotiationId;
@@ -159,10 +233,11 @@ describe("negotiation protocol HTTP API", () => {
   it("lets buyer and seller agents negotiate entirely through the public API", async () => {
     const parley = new HttpParleyApiClient(baseUrl);
     const buyer = new BuyerAgent(sampleBuyerRequest.buyerAgentId, sampleBuyerRequest, parley);
-    const seller = new SellerAgent(sampleSellerPolicy.sellerAgentId, sampleSellerPolicy);
+    const seller = new SellerAgent(sampleSellerPolicy.sellerAgentId, sampleSellerPolicy, parley);
     const observer = new ObserverAgent("observer-test", parley);
 
-    const negotiation = await buyer.negotiateWith(seller.publishPolicy());
+    await seller.register();
+    const negotiation = await buyer.negotiateWith(seller.identity.agentId);
     const negotiationId = negotiation.result.session.negotiationId;
     const summary = await observer.summarize(negotiationId);
 
@@ -173,5 +248,100 @@ describe("negotiation protocol HTTP API", () => {
     expect(summary.messageTypes).toContain("Offer");
     expect(summary.messageTypes).toContain("Agreement");
     expect(summary.finalState).toBe("agreement");
+  });
+
+  it("resolves a turn-by-turn negotiation driven by two independent callers via open + message, every move signed and verified", async () => {
+    // Each side generates its own keypair and never shares the private half —
+    // exactly like run-buyer-agent.ts/run-seller-agent.ts. The server only
+    // ever sees public keys (declared here) and signatures (verified there).
+    const buyerKeys = generateAgentKeyPair();
+    const sellerKeys = generateAgentKeyPair();
+    const buyerRequest = { ...sampleBuyerRequest, buyerPublicKey: buyerKeys.publicKey };
+    const sellerPolicy = { ...sampleSellerPolicy, publicKey: sellerKeys.publicKey };
+    registerSellerPolicy(sellerPolicy);
+
+    const negotiationId = crypto.randomUUID();
+    const openingOffer = createOpeningOffer(buyerRequest, negotiationId, sellerPolicy.sellerAgentId, buyerKeys.privateKey);
+
+    const opened = await (
+      await fetch(`${baseUrl}/api/negotiate/open`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ request: buyerRequest, sellerAgentId: sellerPolicy.sellerAgentId, openingOffer }),
+      })
+    ).json();
+    expect(opened.session.negotiationId).toBe(negotiationId);
+    expect(opened.session.currentState).toBe("awaiting_seller_response");
+
+    // Neither side is ever driven by runNegotiation()/a single function playing both parts —
+    // each call below independently decides its own move using only its own private data.
+    for (let i = 0; i < 10; i++) {
+      const sessionResponse = await fetch(`${baseUrl}/api/negotiate/${negotiationId}`);
+      const { session, commerce }: { session: NegotiationSession; commerce?: { order: { status: string } } } =
+        await sessionResponse.json();
+
+      if (session.currentState === "agreement") {
+        expect(commerce?.order.status).toBe("SETTLED");
+        return;
+      }
+      if (session.currentState === "no_deal") {
+        throw new Error("negotiation ended in no_deal; test scenario expected agreement");
+      }
+
+      const lastOffer = [...session.messageHistory]
+        .reverse()
+        .find((m): m is OfferMessage => m.messageType === "Offer" || m.messageType === "CounterOffer")!;
+
+      if (session.currentState === "awaiting_seller_response") {
+        const move = decideSellerMove(sellerPolicy, session, lastOffer, sellerKeys.privateKey);
+        const message =
+          move.type === "accept"
+            ? buildAcceptMessage(sellerPolicy.sellerAgentId, session.buyerAgentId, negotiationId, lastOffer.id, move.reason, sellerKeys.privateKey)
+            : move.type === "counter"
+              ? move.message
+              : buildNoDealMessage(sellerPolicy.sellerAgentId, session.buyerAgentId, session, move.reason, sellerKeys.privateKey);
+        await fetch(`${baseUrl}/api/negotiate/message`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ negotiationId, message }),
+        });
+        continue;
+      }
+
+      const move = decideBuyerMove(buyerRequest, session, lastOffer, buyerKeys.privateKey);
+      const message =
+        move.type === "accept"
+          ? buildAcceptMessage(buyerRequest.buyerAgentId, session.sellerAgentId, negotiationId, lastOffer.id, move.reason, buyerKeys.privateKey)
+          : move.type === "counter"
+            ? move.message
+            : buildNoDealMessage(buyerRequest.buyerAgentId, session.sellerAgentId, session, move.reason, buyerKeys.privateKey);
+      await fetch(`${baseUrl}/api/negotiate/message`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ negotiationId, message }),
+      });
+    }
+
+    throw new Error("negotiation did not resolve within 10 turns");
+  });
+
+  it("rejects a message whose signature does not match the claimed sender's declared public key", async () => {
+    const buyerKeys = generateAgentKeyPair();
+    const impostorKeys = generateAgentKeyPair();
+    const buyerRequest = { ...sampleBuyerRequest, buyerPublicKey: buyerKeys.publicKey };
+    const negotiationId = crypto.randomUUID();
+
+    // Signed with the wrong key — an impostor claiming to be this buyer.
+    const forgedOpeningOffer = createOpeningOffer(buyerRequest, negotiationId, sampleSellerPolicy.sellerAgentId, impostorKeys.privateKey);
+
+    const response = await fetch(`${baseUrl}/api/negotiate/open`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ request: buyerRequest, sellerAgentId: sampleSellerPolicy.sellerAgentId, openingOffer: forgedOpeningOffer }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("signature");
   });
 });

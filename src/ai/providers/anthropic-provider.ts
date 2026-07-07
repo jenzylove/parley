@@ -35,7 +35,7 @@ const explanationTool = {
 export class AnthropicProvider implements AIProvider {
   constructor(
     private readonly apiKey: string,
-    private readonly model = process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest",
+    private readonly model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   ) {}
 
   explainCounterOffer(input: ExplanationInput): Promise<NegotiationExplanation> {

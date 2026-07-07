@@ -4,6 +4,8 @@ Protocol version: `parley-negotiation/0.1`
 
 Parley owns negotiation. CROO owns the commerce lifecycle after negotiation succeeds.
 
+For the full wire-level spec aimed at an external agent implementing this protocol independently (any language, no dependency on this repo), see **`docs/SPEC.md`**. This page is the conceptual overview.
+
 ## Negotiation Layer
 
 Parley protocol messages:
@@ -19,7 +21,7 @@ The deterministic engine decides whether a message is valid and whether the nego
 
 ## Seller Policies
 
-Each seller publishes a machine-readable policy:
+Each seller registers a machine-readable policy with Parley's registry (`POST /api/sellers/register`) — **not** with the buyer:
 
 - `minimumPrice`
 - `preferredPrice`
@@ -31,7 +33,21 @@ Each seller publishes a machine-readable policy:
 - `preferredPaymentSchedule`
 - `maxRounds`
 
-Negotiation operates against this policy deterministically. AI can explain the result, but it cannot modify pricing, approve agreements, or bypass constraints.
+A buyer starts a negotiation by referencing a `sellerAgentId`, never by submitting the policy itself. `GET /api/sellers` exposes only a price-free discovery view (service, currency, standard delivery days, max rounds). This is what makes an independent, un-trusted seller possible — earlier batches required the buyer to already hold the seller's full policy (including its reservation price) just to start a negotiation, which defeated the point of negotiating at all.
+
+Negotiation operates against the registered policy deterministically. AI can explain the result, but it cannot modify pricing, approve agreements, or bypass constraints.
+
+## Signing
+
+Every seller policy and buyer request declares an Ed25519 public key (`publicKey` / `buyerPublicKey`); every `Offer`/`CounterOffer`/`Accept`/`NoDeal` a real agent sends must carry a `signature` verifying against it, checked server-side before the message is applied. Nobody — not the counterparty, not Parley — ever holds the private key. `Agreement` messages are the exception: Parley's server synthesizes them, so it attests them instead with its own platform keypair (`AgreementPayload.platformAttestation`) rather than forging a signature on the seller's behalf. See `docs/SPEC.md`'s "Signing & verification" section for the full scheme, and `src/core/parley-core/negotiation/signing.ts` for the implementation. CAP's own AA wallet keys play no part in this — CROO's backend never exposes them to SDK callers, so this is a Parley-native layer of identity sitting above CAP, not a reuse of it.
+
+## Turn-By-Turn Negotiation (real counterparties)
+
+`POST /api/negotiate/start` remains a one-shot reference resolution (useful for demos/tests): it runs both sides' strategies synchronously and returns a finished result.
+
+For a real external counterparty — a standalone process, or another team's agent — `POST /api/negotiate/open` records only the buyer's opening offer and leaves the session live. Each side then plays its own moves via `POST /api/negotiate/message`, deciding using only its own private data plus the wire history (see `decideSellerMove`/`decideBuyerMove` in `src/core/parley-core/negotiation/strategy.ts`). When a valid `Accept` lands, the server — which is the only party holding the seller's registered policy — synthesizes the `Agreement` and drives commerce/settlement automatically.
+
+`npm run agent:seller` and `npm run agent:buyer` are two such standalone processes, each a distinct OS process talking only to the HTTP API.
 
 ## Market Intelligence
 
@@ -96,10 +112,7 @@ Settlement remains behind a generic adapter interface.
 
 ## A2A Composability
 
-The demo includes three protocol clients:
+Two layers of protocol clients exist:
 
-- `BuyerAgent`: submits a service request and starts negotiation through the public API.
-- `SellerAgent`: publishes a machine-readable policy consumed by the buyer through Parley.
-- `ObserverAgent`: watches protocol history through the public API and summarizes message flow.
-
-The agents do not call `parley-core` directly.
+- `BuyerAgent` / `SellerAgent` / `ObserverAgent` (`src/agents/a2a`): in-process demo clients used by `/api/a2a/demo` for the one-shot showcase. They call only the public HTTP API, never `parley-core` directly, but they run inside the same Node process as the server.
+- `run-buyer-agent.ts` / `run-seller-agent.ts` (`npm run agent:buyer` / `npm run agent:seller`): genuinely separate OS processes. Neither imports the other's code or the server's internals — they poll and post exactly the endpoints in `docs/SPEC.md`. This is the real composability proof: either script could be swapped for a different team's agent, in a different language, with no code shared beyond the wire protocol.

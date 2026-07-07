@@ -1,4 +1,4 @@
-import type { SellerPolicy, ServiceRequest } from "@/core/parley-core";
+import type { ServiceRequest } from "@/core/parley-core";
 import type { AgentIdentity, ParleyApiClient } from "./types";
 
 export class BuyerAgent {
@@ -16,7 +16,8 @@ export class BuyerAgent {
     return this.request;
   }
 
-  async negotiateWith(policy: SellerPolicy) {
-    return this.parley.startNegotiation(this.request, policy);
+  /** Only ever needs the seller's public identity — never sees the seller's policy. */
+  async negotiateWith(sellerAgentId: string) {
+    return this.parley.startNegotiation(this.request, sellerAgentId);
   }
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyProtocolMessage, createNegotiationSession, runNegotiation } from "./engine";
+import { generateAgentKeyPair } from "./signing";
 import type { ProtocolMessage, SellerPolicy, ServiceRequest } from "./types";
 
 const buyerRequest: ServiceRequest = {
   id: "request_test",
   buyerAgentId: "buyer",
+  buyerPublicKey: generateAgentKeyPair().publicKey,
   service: "Landing page copy",
   requestedItems: ["headline", "faq"],
   targetPrice: 40,
@@ -16,6 +18,7 @@ const buyerRequest: ServiceRequest = {
 
 const sellerPolicy: SellerPolicy = {
   sellerAgentId: "seller",
+  publicKey: generateAgentKeyPair().publicKey,
   service: "Landing page copy",
   currency: "USDC",
   minimumPrice: 44,
@@ -59,7 +62,9 @@ describe("multi-round negotiation engine", () => {
 
     expect(result.session.currentState).toBe("no_deal");
     expect(result.noDeal?.messageType).toBe("NoDeal");
-    expect(result.noDeal?.payload.reason).toContain("Buyer maximum price");
+    // The buyer never learns the seller's reservation price, so it can only walk
+    // away once rounds run out — not by inferring the seller's floor is unreachable.
+    expect(result.noDeal?.payload.reason).toContain("Maximum negotiation rounds");
   });
 
   it("terminates when max rounds are reached", () => {
@@ -90,6 +95,7 @@ describe("multi-round negotiation engine", () => {
         paymentSchedule: "upfront",
         expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
         round: 1,
+        recurringClient: true,
       },
     };
 

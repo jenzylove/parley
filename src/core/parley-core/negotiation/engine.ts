@@ -1,54 +1,33 @@
+import type { KeyObject } from "node:crypto";
 import type {
-  AcceptPayload,
   AgreementMessage,
   AgreementPayload,
-  AgentId,
   NegotiationResult,
   NegotiationSession,
-  NoDealMessage,
-  NoDealPayload,
   OfferMessage,
   OfferPayload,
   PolicyExplanation,
   ProtocolMessage,
-  ProtocolPayload,
   SellerPolicy,
   ServiceRequest,
   TransitionResult,
 } from "./types";
 import {
   sellerMinimumAcceptablePrice,
-  validateOfferAgainstPolicy,
   validateOfferPayload,
   validateSellerPolicy,
   validateServiceRequest,
 } from "./validation";
+import { buildAcceptMessage, buildNoDealMessage, createOpeningOffer, decideBuyerMove, decideSellerMove } from "./strategy";
+import { signPayload } from "./signing";
 
 const nowIso = () => new Date().toISOString();
-
-const expiresInMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
-
 const id = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
-function createMessage<TPayload extends ProtocolPayload>(
-  messageType: ProtocolMessage<TPayload>["messageType"],
-  sender: AgentId,
-  receiver: AgentId,
-  payload: TPayload,
-): ProtocolMessage<TPayload> {
+/** negotiationId defaults to a server-generated id, but a buyer opening its own signed offer must supply the id it already signed against. */
+export function createNegotiationSession(request: ServiceRequest, policy: SellerPolicy, negotiationId?: string): NegotiationSession {
   return {
-    id: id(messageType.toLowerCase()),
-    sender,
-    receiver,
-    timestamp: nowIso(),
-    messageType,
-    payload,
-  };
-}
-
-export function createNegotiationSession(request: ServiceRequest, policy: SellerPolicy): NegotiationSession {
-  return {
-    negotiationId: id("negotiation"),
+    negotiationId: negotiationId ?? id("negotiation"),
     buyerAgentId: request.buyerAgentId,
     sellerAgentId: policy.sellerAgentId,
     currentRound: 0,
@@ -172,97 +151,9 @@ export function applyProtocolMessage(session: NegotiationSession, message: Proto
   return nextStateForMessage(session, message);
 }
 
-function createOfferPayload(
-  negotiationId: string,
-  price: number,
-  request: ServiceRequest,
-  deliveryDays: number,
-  round: number,
-): OfferPayload {
-  return {
-    negotiationId,
-    price,
-    currency: request.currency,
-    deliveryDays,
-    bundleItems: request.requestedItems,
-    paymentSchedule: "upfront",
-    expiresAt: expiresInMinutes(30),
-    round,
-  };
-}
-
-function createOpeningOffer(request: ServiceRequest, session: NegotiationSession): OfferMessage {
-  return createMessage(
-    "Offer",
-    request.buyerAgentId,
-    session.sellerAgentId,
-    createOfferPayload(
-      session.negotiationId,
-      request.targetPrice,
-      request,
-      request.desiredDeliveryDays,
-      1,
-    ),
-  ) as OfferMessage;
-}
-
-function createSellerCounteroffer(
-  request: ServiceRequest,
-  policy: SellerPolicy,
-  session: NegotiationSession,
-  lastOffer: OfferPayload,
-): OfferMessage {
-  const rushPrice = lastOffer.deliveryDays < policy.standardDeliveryDays ? policy.rushFee : 0;
-  const discount = request.requestedItems.length > 1 ? policy.bundleDiscount : 0;
-  const recurringDiscount = request.recurringClient ? policy.recurringClientDiscount : 0;
-  const askPrice = Math.max(policy.minimumPrice, policy.preferredPrice + rushPrice - discount - recurringDiscount);
-
-  return createMessage(
-    "CounterOffer",
-    policy.sellerAgentId,
-    request.buyerAgentId,
-    createOfferPayload(
-      session.negotiationId,
-      askPrice,
-      request,
-      Math.max(lastOffer.deliveryDays, policy.standardDeliveryDays),
-      session.currentRound + 1,
-    ),
-  ) as OfferMessage;
-}
-
-function createBuyerCounteroffer(
-  request: ServiceRequest,
-  session: NegotiationSession,
-  lastSellerOffer: OfferPayload,
-): OfferMessage {
-  const remainingGap = Math.max(0, request.maxPrice - request.targetPrice);
-  const concession = Math.ceil(remainingGap / Math.max(1, session.maxRounds - 1));
-  const nextPrice = Math.min(request.maxPrice, Math.max(request.targetPrice + concession * session.currentRound, lastSellerOffer.price - concession));
-
-  return createMessage(
-    "CounterOffer",
-    request.buyerAgentId,
-    session.sellerAgentId,
-    createOfferPayload(
-      session.negotiationId,
-      nextPrice,
-      request,
-      lastSellerOffer.deliveryDays,
-      session.currentRound + 1,
-    ),
-  ) as OfferMessage;
-}
-
-function createAccept(sender: AgentId, receiver: AgentId, negotiationId: string, acceptedMessageId: string, reason: string) {
-  const payload: AcceptPayload = { negotiationId, acceptedMessageId, reason };
-
-  return createMessage("Accept", sender, receiver, payload);
-}
-
-function explainPolicyDecision(request: ServiceRequest, policy: SellerPolicy, finalOffer: OfferPayload): PolicyExplanation {
+function explainPolicyDecision(policy: SellerPolicy, finalOffer: OfferPayload): PolicyExplanation {
   const constraintsApplied: string[] = [];
-  const finalPolicyFloor = sellerMinimumAcceptablePrice(finalOffer, policy, request.recurringClient);
+  const finalPolicyFloor = sellerMinimumAcceptablePrice(finalOffer, policy);
 
   if (finalOffer.deliveryDays < policy.standardDeliveryDays) {
     constraintsApplied.push(`Rush fee considered: ${policy.rushFee} ${policy.currency}`);
@@ -270,7 +161,7 @@ function explainPolicyDecision(request: ServiceRequest, policy: SellerPolicy, fi
   if (finalOffer.bundleItems.length > 1) {
     constraintsApplied.push(`Bundle discount considered: ${policy.bundleDiscount} ${policy.currency}`);
   }
-  if (request.recurringClient) {
+  if (finalOffer.recurringClient) {
     constraintsApplied.push(`Recurring client discount considered: ${policy.recurringClientDiscount} ${policy.currency}`);
   }
   constraintsApplied.push(`Payment schedule matched: ${policy.preferredPaymentSchedule}`);
@@ -285,12 +176,19 @@ function explainPolicyDecision(request: ServiceRequest, policy: SellerPolicy, fi
   };
 }
 
-function createAgreement(
+/**
+ * Synthesizes the Agreement record for an offer that was just accepted.
+ * Only the party holding the seller's policy (Parley's registry, or the
+ * seller's own process) can honestly compute policyExplanation, since it
+ * requires the seller's private floor/preferred price.
+ */
+export function createAgreement(
   request: ServiceRequest,
   policy: SellerPolicy,
   session: NegotiationSession,
   finalOffer: OfferMessage,
   reason: string,
+  platformKeyPair?: { publicKey: string; privateKey: KeyObject },
 ): AgreementMessage {
   const payload: AgreementPayload = {
     agreementId: id("agreement"),
@@ -304,25 +202,27 @@ function createAgreement(
     roundsUsed: session.currentRound,
     savings: Math.max(0, policy.preferredPrice - finalOffer.payload.price),
     reason,
-    policyExplanation: explainPolicyDecision(request, policy, finalOffer.payload),
+    policyExplanation: explainPolicyDecision(policy, finalOffer.payload),
   };
 
-  return createMessage("Agreement", policy.sellerAgentId, request.buyerAgentId, payload) as AgreementMessage;
-}
+  if (platformKeyPair) {
+    payload.platformAttestation = {
+      publicKey: platformKeyPair.publicKey,
+      signature: signPayload(
+        { agreementId: payload.agreementId, negotiationId: payload.negotiationId, finalOffer: payload.finalOffer, policyExplanation: payload.policyExplanation },
+        platformKeyPair.privateKey,
+      ),
+    };
+  }
 
-function createNoDeal(
-  sender: AgentId,
-  receiver: AgentId,
-  session: NegotiationSession,
-  reason: string,
-): NoDealMessage {
-  const payload: NoDealPayload = {
-    negotiationId: session.negotiationId,
-    reason,
-    finalRound: session.currentRound,
+  return {
+    id: id("agreement"),
+    sender: policy.sellerAgentId,
+    receiver: request.buyerAgentId,
+    timestamp: nowIso(),
+    messageType: "Agreement",
+    payload,
   };
-
-  return createMessage("NoDeal", sender, receiver, payload) as NoDealMessage;
 }
 
 function appendOrThrow(session: NegotiationSession, message: ProtocolMessage): NegotiationSession {
@@ -335,7 +235,7 @@ function appendOrThrow(session: NegotiationSession, message: ProtocolMessage): N
   return transition.session;
 }
 
-function lastOffer(session: NegotiationSession): OfferMessage {
+function lastOfferInHistory(session: NegotiationSession): OfferMessage {
   const offer = [...session.messageHistory]
     .reverse()
     .find((message): message is OfferMessage => message.messageType === "Offer" || message.messageType === "CounterOffer");
@@ -347,14 +247,49 @@ function lastOffer(session: NegotiationSession): OfferMessage {
   return offer;
 }
 
-function finishNoDeal(session: NegotiationSession, sender: AgentId, receiver: AgentId, reason: string): NegotiationResult {
-  const noDeal = createNoDeal(sender, receiver, session, reason);
+function finishNoDeal(session: NegotiationSession, sender: string, receiver: string, reason: string): NegotiationResult {
+  const noDeal = buildNoDealMessage(sender, receiver, session, reason);
   const finalSession = appendOrThrow(session, noDeal);
 
   return { session: finalSession, noDeal };
 }
 
-export function runNegotiation(request: ServiceRequest, policy: SellerPolicy): NegotiationResult {
+function finishAgreement(
+  session: NegotiationSession,
+  request: ServiceRequest,
+  policy: SellerPolicy,
+  acceptedOffer: OfferMessage,
+  acceptSender: string,
+  acceptReceiver: string,
+  reason: string,
+  platformKeyPair?: { publicKey: string; privateKey: KeyObject },
+): NegotiationResult {
+  const accept = buildAcceptMessage(acceptSender, acceptReceiver, session.negotiationId, acceptedOffer.id, reason);
+  let nextSession = appendOrThrow(session, accept);
+
+  const agreement = createAgreement(request, policy, nextSession, acceptedOffer, reason, platformKeyPair);
+  nextSession = appendOrThrow(nextSession, agreement);
+
+  return { session: nextSession, agreement };
+}
+
+/**
+ * Reference one-shot simulation: resolves an entire negotiation synchronously
+ * using the same decideSellerMove/decideBuyerMove primitives a standalone
+ * agent process would call one HTTP round-trip at a time. Kept for fast
+ * demos and tests; not the only way to drive a negotiation — see
+ * src/api/negotiate-service.ts's open/message flow for the turn-by-turn path.
+ *
+ * platformKeyPair, if given, is used to attest the resulting Agreement (see
+ * AgreementPayload.platformAttestation) — this path doesn't sign individual
+ * Offer/CounterOffer messages, since it's a self-contained simulation, not a
+ * real exchange between two key-holding processes.
+ */
+export function runNegotiation(
+  request: ServiceRequest,
+  policy: SellerPolicy,
+  platformKeyPair?: { publicKey: string; privateKey: KeyObject },
+): NegotiationResult {
   const requestValidation = validateServiceRequest(request);
   const policyValidation = validateSellerPolicy(policy);
   let session = createNegotiationSession(request, policy);
@@ -367,77 +302,37 @@ export function runNegotiation(request: ServiceRequest, policy: SellerPolicy): N
     return finishNoDeal(session, policy.sellerAgentId, request.buyerAgentId, policyValidation.errors.join("; "));
   }
 
-  session = appendOrThrow(session, createOpeningOffer(request, session));
+  session = appendOrThrow(session, createOpeningOffer(request, session.negotiationId, session.sellerAgentId));
 
   while (session.currentState !== "agreement" && session.currentState !== "no_deal") {
-    const offer = lastOffer(session);
-
     if (session.currentState === "awaiting_seller_response") {
-      const policyCheck = validateOfferAgainstPolicy(offer.payload, policy, request.recurringClient);
+      const offer = lastOfferInHistory(session);
+      const move = decideSellerMove(policy, session, offer);
 
-      if (policyCheck.ok) {
-        const accept = createAccept(
-          policy.sellerAgentId,
-          request.buyerAgentId,
-          session.negotiationId,
-          offer.id,
-          "Offer satisfies seller policy constraints.",
-        );
-        session = appendOrThrow(session, accept);
-
-        const agreement = createAgreement(request, policy, session, offer, accept.payload.reason);
-        session = appendOrThrow(session, agreement);
-
-        return { session, agreement };
+      if (move.type === "accept") {
+        return finishAgreement(session, request, policy, offer, policy.sellerAgentId, request.buyerAgentId, move.reason, platformKeyPair);
       }
 
-      if (session.currentRound >= session.maxRounds) {
-        return finishNoDeal(
-          session,
-          policy.sellerAgentId,
-          request.buyerAgentId,
-          "Maximum negotiation rounds reached before seller could make a valid counteroffer.",
-        );
+      if (move.type === "walk") {
+        return finishNoDeal(session, policy.sellerAgentId, request.buyerAgentId, move.reason);
       }
 
-      session = appendOrThrow(session, createSellerCounteroffer(request, policy, session, offer.payload));
+      session = appendOrThrow(session, move.message);
     }
 
     if (session.currentState === "awaiting_buyer_response") {
-      const sellerOffer = lastOffer(session);
-      const buyerCanAccept =
-        sellerOffer.payload.price <= request.maxPrice &&
-        sellerOffer.payload.deliveryDays >= request.desiredDeliveryDays;
+      const offer = lastOfferInHistory(session);
+      const move = decideBuyerMove(request, session, offer);
 
-      if (buyerCanAccept) {
-        const accept = createAccept(
-          request.buyerAgentId,
-          policy.sellerAgentId,
-          session.negotiationId,
-          sellerOffer.id,
-          "Counteroffer is within buyer price and delivery constraints.",
-        );
-        session = appendOrThrow(session, accept);
-
-        const agreement = createAgreement(request, policy, session, sellerOffer, accept.payload.reason);
-        session = appendOrThrow(session, agreement);
-
-        return { session, agreement };
+      if (move.type === "accept") {
+        return finishAgreement(session, request, policy, offer, request.buyerAgentId, policy.sellerAgentId, move.reason, platformKeyPair);
       }
 
-      const minimumAcceptable = sellerMinimumAcceptablePrice(sellerOffer.payload, policy, request.recurringClient);
-      if (session.currentRound >= session.maxRounds || request.maxPrice < minimumAcceptable) {
-        return finishNoDeal(
-          session,
-          request.buyerAgentId,
-          policy.sellerAgentId,
-          request.maxPrice < minimumAcceptable
-            ? "Buyer maximum price cannot satisfy seller policy constraints."
-            : "Maximum negotiation rounds reached before buyer could accept.",
-        );
+      if (move.type === "walk") {
+        return finishNoDeal(session, request.buyerAgentId, policy.sellerAgentId, move.reason);
       }
 
-      session = appendOrThrow(session, createBuyerCounteroffer(request, session, sellerOffer.payload));
+      session = appendOrThrow(session, move.message);
     }
   }
 

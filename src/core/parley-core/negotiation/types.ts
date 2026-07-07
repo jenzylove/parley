@@ -14,6 +14,8 @@ export type NegotiationState =
 export type ServiceRequest = {
   id: string;
   buyerAgentId: AgentId;
+  /** Base64 SPKI DER Ed25519 public key. Every message this buyer sends must verify against it. */
+  buyerPublicKey: string;
   service: string;
   requestedItems: string[];
   targetPrice: number;
@@ -25,6 +27,8 @@ export type ServiceRequest = {
 
 export type SellerPolicy = {
   sellerAgentId: AgentId;
+  /** Base64 SPKI DER Ed25519 public key. Every message this seller sends must verify against it. */
+  publicKey: string;
   service: string;
   currency: Currency;
   minimumPrice: number;
@@ -55,6 +59,12 @@ export type OfferPayload = {
   paymentSchedule: "upfront";
   expiresAt: string;
   round: number;
+  /**
+   * Self-declared by the buyer on the wire (set once, on the opening offer).
+   * Carried on every subsequent payload so a seller's counter-offer strategy
+   * never needs out-of-band access to the buyer's private ServiceRequest.
+   */
+  recurringClient: boolean;
 };
 
 export type AcceptPayload = {
@@ -67,6 +77,19 @@ export type RejectPayload = {
   negotiationId: string;
   rejectedMessageId: string;
   reason: string;
+};
+
+/**
+ * Cryptographic proof that Parley's own negotiation service — not either
+ * counterparty — computed this agreement's policyExplanation from the
+ * seller's registered policy. Necessary because only the trusted registry
+ * holding that policy can honestly derive it; the seller's own signature
+ * would attest nothing an outside verifier could check the floor/preferred
+ * price against.
+ */
+export type PlatformAttestation = {
+  publicKey: string;
+  signature: string;
 };
 
 export type AgreementPayload = {
@@ -82,6 +105,7 @@ export type AgreementPayload = {
   savings: number;
   reason: string;
   policyExplanation: PolicyExplanation;
+  platformAttestation?: PlatformAttestation;
 };
 
 export type NoDealPayload = {
@@ -104,6 +128,8 @@ export type ProtocolMessage<TPayload extends ProtocolPayload = ProtocolPayload> 
   timestamp: string;
   messageType: MessageType;
   payload: TPayload;
+  /** Base64 Ed25519 signature over the message (see negotiation/signing.ts), verifying it actually came from `sender`. */
+  signature?: string;
 };
 
 export type OfferMessage = ProtocolMessage<OfferPayload> & {
@@ -138,6 +164,29 @@ export type NegotiationResult = {
   agreement?: AgreementMessage;
   noDeal?: NoDealMessage;
 };
+
+/**
+ * What a seller may safely publish about its policy for discovery — no
+ * price fields, since minimumPrice/preferredPrice are the reservation
+ * price a negotiation exists to protect.
+ */
+export type PublicSellerTerms = {
+  sellerAgentId: AgentId;
+  service: string;
+  currency: Currency;
+  standardDeliveryDays: number;
+  maxRounds: number;
+};
+
+export function toPublicSellerTerms(policy: SellerPolicy): PublicSellerTerms {
+  return {
+    sellerAgentId: policy.sellerAgentId,
+    service: policy.service,
+    currency: policy.currency,
+    standardDeliveryDays: policy.standardDeliveryDays,
+    maxRounds: policy.maxRounds,
+  };
+}
 
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
 

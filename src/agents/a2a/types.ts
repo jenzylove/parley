@@ -1,5 +1,5 @@
 import type { HistoryResponse, NegotiationResponse, SessionResponse } from "@/api/types";
-import type { ProtocolMessage, SellerPolicy, ServiceRequest } from "@/core/parley-core";
+import type { ProtocolMessage, PublicSellerTerms, SellerPolicy, ServiceRequest } from "@/core/parley-core";
 
 export type AgentIdentity = {
   agentId: string;
@@ -20,7 +20,7 @@ export type A2ADemoResult = {
   sellerAgent: AgentIdentity;
   observerAgent: AgentIdentity;
   request: ServiceRequest;
-  sellerPolicy: SellerPolicy;
+  sellerPublicTerms: PublicSellerTerms;
   negotiation: NegotiationResponse;
   session: SessionResponse;
   history: HistoryResponse;
@@ -33,7 +33,8 @@ export type A2ADemoResponse = {
 };
 
 export type ParleyApiClient = {
-  startNegotiation(request: ServiceRequest, policy: SellerPolicy): Promise<NegotiationResponse>;
+  registerSeller(policy: SellerPolicy): Promise<{ sellerAgentId: string }>;
+  startNegotiation(request: ServiceRequest, sellerAgentId: string): Promise<NegotiationResponse>;
   getSession(negotiationId: string): Promise<SessionResponse>;
   getHistory(negotiationId: string): Promise<HistoryResponse>;
 };

@@ -25,23 +25,6 @@ export function createPublicNegotiationContext(
   };
 }
 
-export function createPublicSellerTerms(policy: SellerPolicy) {
-  return {
-    service: policy.service,
-    currency: policy.currency,
-    minimumPrice: policy.minimumPrice,
-    preferredPrice: policy.preferredPrice,
-    standardDeliveryDays: policy.standardDeliveryDays,
-    rushFee: policy.rushFee,
-    bundleDiscount: policy.bundleDiscount,
-    recurringClientDiscount: policy.recurringClientDiscount,
-    maximumWorkload: policy.maximumWorkload,
-    currentWorkload: policy.currentWorkload,
-    preferredPaymentSchedule: policy.preferredPaymentSchedule,
-    maxRounds: policy.maxRounds,
-  };
-}
-
 function safeProtocolMessageForAI(message: ProtocolMessage): ProtocolMessage {
   if (message.messageType !== "Agreement") {
     return message;

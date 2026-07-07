@@ -7,10 +7,14 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cap:smoke": "node --env-file=.env scripts/cap-smoke-test.mjs",
+    "agent:seller": "tsx src/agents/seller/run-seller-agent.ts",
+    "agent:buyer": "tsx src/agents/buyer/run-buyer-agent.ts"
   },
   "dependencies": {
     "@croo-network/sdk": "^0.2.1",
+    "framer-motion": "^12.42.2",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
@@ -19,6 +23,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "tsx": "^4.23.0",
     "typescript": "latest",
     "vitest": "latest"
   }

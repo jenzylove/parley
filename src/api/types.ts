@@ -5,7 +5,9 @@ import type {
   MarketIntelligence,
   NegotiationResult,
   NegotiationSession,
+  OfferMessage,
   ProtocolMessage,
+  PublicSellerTerms,
   SellerPolicy,
   ServiceRequest,
 } from "@/core/parley-core";
@@ -16,7 +18,7 @@ export type VersionedResponse<T> = T & {
 
 export type StartNegotiationRequest = {
   request: ServiceRequest;
-  policy: SellerPolicy;
+  sellerAgentId: string;
 };
 
 export type NegotiationResponse = VersionedResponse<{
@@ -27,6 +29,22 @@ export type NegotiationResponse = VersionedResponse<{
   };
   market: MarketIntelligence;
   explanations: ExplainedProtocolMessage[];
+}>;
+
+export type OpenNegotiationRequest = {
+  request: ServiceRequest;
+  sellerAgentId: string;
+  /**
+   * The buyer's opening Offer, already built and signed by the buyer's own
+   * process (see strategy.ts's createOpeningOffer). Parley never constructs
+   * this on the buyer's behalf — that would mean the "buyer's" first move
+   * wasn't actually authored (or signable) by the buyer at all.
+   */
+  openingOffer: OfferMessage;
+};
+
+export type OpenNegotiationResponse = VersionedResponse<{
+  session: NegotiationSession;
 }>;
 
 export type MessageNegotiationRequest = {
@@ -41,6 +59,21 @@ export type MessageNegotiationResponse = VersionedResponse<{
     lockedTerms?: LockedTerms;
   };
   market?: MarketIntelligence;
+}>;
+
+export type RegisterSellerRequest = SellerPolicy;
+
+export type RegisterSellerResponse = VersionedResponse<{
+  sellerAgentId: string;
+}>;
+
+export type ListSellersResponse = VersionedResponse<{
+  sellers: PublicSellerTerms[];
+}>;
+
+export type PendingForSellerResponse = VersionedResponse<{
+  sellerAgentId: string;
+  negotiationIds: string[];
 }>;
 
 export type SessionResponse = VersionedResponse<{

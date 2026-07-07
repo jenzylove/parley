@@ -22,13 +22,27 @@ Copy `.env.example` to `.env` to configure either.
 ## What's in this repo
 
 - **Negotiation engine** (`src/core/parley-core/negotiation`) — deterministic state machine for `Offer` / `CounterOffer` / `Accept` / `Reject` / `Agreement` / `NoDeal` messages, seller policy validation, and a hard `maxRounds` cutoff. No LLM call sits on the decision path.
+- **Strategy module** (`src/core/parley-core/negotiation/strategy.ts`) — pure `decideSellerMove` / `decideBuyerMove` functions that only ever see the deciding party's own private policy/request plus the counterparty's last wire message. Shared by the one-shot reference simulation *and* the standalone agent processes below — same logic, two different callers.
+- **Seller registry** (`src/api/seller-registry.ts`) — sellers register a policy once (`POST /api/sellers/register`); it is never sent to a buyer. Buyers negotiate by referencing a `sellerAgentId`, not by submitting the seller's policy. See `docs/SPEC.md`.
 - **Commerce lifecycle** (`src/core/parley-core/commerce`, `src/cap/lifecycle.ts`) — maps a completed negotiation onto CAP's order lifecycle (`POSTED → NEGOTIATING → LOCKED → DELIVERING → DELIVERED → SETTLING → SETTLED/FAILED`).
 - **CAP settlement** (`src/cap`) — see [SDK methods used](#sdk-methods-used) and `docs/CAP_INTEGRATION.md` below.
 - **AI explanation layer** (`src/ai`) — generates human-readable rationale for a negotiation outcome *after* the deterministic engine has decided it. AI cannot change a price, approve an agreement, or bypass a policy constraint.
-- **REST API** (`src/app/api/negotiate/*`) — `start`, `message`, `:id`, `:id/history`, all versioned with `protocolVersion`.
+- **REST API** (`src/app/api/negotiate/*`, `src/app/api/sellers/*`) — `negotiate/start` (one-shot), `negotiate/open` + `negotiate/message` (turn-by-turn, for a real counterparty), `sellers/register`, `sellers` (discovery), `sellers/:id/pending`, all versioned with `protocolVersion`. Full spec: `docs/SPEC.md`.
 - **A2A demo agents** (`src/agents/a2a`) — `BuyerAgent`, `SellerAgent`, `ObserverAgent`, each talking only to the public HTTP API, never importing the engine directly.
+- **Standalone agent processes** (`npm run agent:seller`, `npm run agent:buyer`) — a real second and third OS process, decoupled from the Next.js server, driving a negotiation turn-by-turn over HTTP only. This is the actual proof of A2A composability: either script could be replaced by a different team's agent in a different language, as long as it speaks `docs/SPEC.md`.
 
-Full protocol/architecture docs: [`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CAP_INTEGRATION.md`](docs/CAP_INTEGRATION.md).
+Full protocol/architecture docs: [`docs/SPEC.md`](docs/SPEC.md) (external agent spec), [`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CAP_INTEGRATION.md`](docs/CAP_INTEGRATION.md).
+
+## Running two real, separate agent processes
+
+With `npm run dev` running in one terminal:
+
+```bash
+npm run agent:buyer    # terminal 2 — opens a negotiation, plays its own counter-offers
+npm run agent:seller   # terminal 3 — registers a policy, responds to pending negotiations
+```
+
+Each process only ever calls the public HTTP API — neither imports the negotiation engine or the other's code. Run them in either order; both poll until the negotiation resolves.
 
 ## SDK methods used
 
@@ -55,7 +69,7 @@ All six vars below must be set or the app silently uses `MockSettlementAdapter` 
 1. Register two agents at [agent.croo.network](https://agent.croo.network) — one to act as requester, one as provider.
 2. Under the provider agent, register a service with **`require_fund_transfer=true`** (required — see above).
 3. Copy each agent's SDK key and the provider's AA wallet address.
-4. Deposit test USDC (Base mainnet) into the requester agent's AA wallet.
+4. CAP has no testnet — deposit a small amount of real USDC (Base mainnet) into the requester agent's AA wallet. Gas is sponsored by CROO's paymaster, so no ETH is needed. Keep negotiated demo prices low (e.g. $1-5) to keep real-money exposure trivial.
 5. Fill in `.env`:
 
 ```bash

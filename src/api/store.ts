@@ -1,24 +1,28 @@
-import type { CommerceOrder, MarketIntelligence, NegotiationResult, NegotiationSession } from "@/core/parley-core";
+import type { CommerceOrder, MarketIntelligence, NegotiationResult, NegotiationSession, ServiceRequest } from "@/core/parley-core";
+import { getGlobalSingleton } from "./global-singleton";
 
 type StoredNegotiation = {
   result: NegotiationResult;
   session: NegotiationSession;
+  request: ServiceRequest;
   commerce?: {
     order: CommerceOrder;
   };
   market?: MarketIntelligence;
 };
 
-const negotiations = new Map<string, StoredNegotiation>();
+const negotiations = getGlobalSingleton("negotiations", () => new Map<string, StoredNegotiation>());
 
 export function saveNegotiation(
   result: NegotiationResult,
+  request: ServiceRequest,
   commerce?: { order: CommerceOrder },
   market?: MarketIntelligence,
 ): NegotiationSession {
   negotiations.set(result.session.negotiationId, {
     result,
     session: result.session,
+    request,
     commerce,
     market,
   });
@@ -30,7 +34,12 @@ export function getNegotiation(negotiationId: string): StoredNegotiation | undef
   return negotiations.get(negotiationId);
 }
 
-export function updateNegotiationSession(negotiationId: string, session: NegotiationSession): NegotiationSession {
+export function updateNegotiationSession(
+  negotiationId: string,
+  session: NegotiationSession,
+  commerce?: { order: CommerceOrder },
+  market?: MarketIntelligence,
+): NegotiationSession {
   const existing = negotiations.get(negotiationId);
 
   if (!existing) {
@@ -44,9 +53,18 @@ export function updateNegotiationSession(negotiationId: string, session: Negotia
       ...existing.result,
       session,
     },
+    commerce: commerce ?? existing.commerce,
+    market: market ?? existing.market,
   });
 
   return session;
+}
+
+/** Negotiation IDs where the given seller has a move to make right now. Lets a standalone seller process discover its own pending work without an out-of-band negotiationId. */
+export function listPendingForSeller(sellerAgentId: string): string[] {
+  return Array.from(negotiations.values())
+    .filter((entry) => entry.session.sellerAgentId === sellerAgentId && entry.session.currentState === "awaiting_seller_response")
+    .map((entry) => entry.session.negotiationId);
 }
 
 export function clearNegotiationsForTests() {

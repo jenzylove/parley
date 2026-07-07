@@ -10,6 +10,7 @@ export function validateServiceRequest(request: ServiceRequest): ValidationResul
 
   if (!request.id) errors.push("request.id is required");
   if (!request.buyerAgentId) errors.push("buyerAgentId is required");
+  if (!request.buyerPublicKey) errors.push("buyerPublicKey is required");
   if (!request.service) errors.push("service is required");
   if (request.currency !== "USDC") errors.push("currency must be USDC");
   if (request.targetPrice <= 0) errors.push("targetPrice must be positive");
@@ -25,6 +26,7 @@ export function validateSellerPolicy(policy: SellerPolicy): ValidationResult {
   const errors: string[] = [];
 
   if (!policy.sellerAgentId) errors.push("sellerAgentId is required");
+  if (!policy.publicKey) errors.push("publicKey is required");
   if (!policy.service) errors.push("service is required");
   if (policy.currency !== "USDC") errors.push("currency must be USDC");
   if (policy.minimumPrice <= 0) errors.push("minimumPrice must be positive");
@@ -53,29 +55,22 @@ export function validateOfferPayload(payload: OfferPayload): ValidationResult {
   if (payload.paymentSchedule !== "upfront") errors.push("paymentSchedule must be upfront");
   if (!isFutureIsoDate(payload.expiresAt)) errors.push("expiresAt must be in the future");
   if (payload.round < 1) errors.push("round must be at least 1");
+  if (typeof payload.recurringClient !== "boolean") errors.push("recurringClient must be boolean");
 
   return errors.length ? { ok: false, errors } : { ok: true };
 }
 
-export function sellerMinimumAcceptablePrice(
-  payload: OfferPayload,
-  policy: SellerPolicy,
-  recurringClient = false,
-): number {
+export function sellerMinimumAcceptablePrice(payload: OfferPayload, policy: SellerPolicy): number {
   const rushPrice = payload.deliveryDays < policy.standardDeliveryDays ? policy.rushFee : 0;
   const discount = payload.bundleItems.length > 1 ? policy.bundleDiscount : 0;
-  const recurringDiscount = recurringClient ? policy.recurringClientDiscount : 0;
+  const recurringDiscount = payload.recurringClient ? policy.recurringClientDiscount : 0;
 
   return Math.max(policy.minimumPrice, policy.minimumPrice + rushPrice - discount - recurringDiscount);
 }
 
-export function validateOfferAgainstPolicy(
-  payload: OfferPayload,
-  policy: SellerPolicy,
-  recurringClient = false,
-): ValidationResult {
+export function validateOfferAgainstPolicy(payload: OfferPayload, policy: SellerPolicy): ValidationResult {
   const errors: string[] = [];
-  const minimumAcceptablePrice = sellerMinimumAcceptablePrice(payload, policy, recurringClient);
+  const minimumAcceptablePrice = sellerMinimumAcceptablePrice(payload, policy);
 
   if (payload.currency !== policy.currency) errors.push("offer currency does not match seller policy");
   if (payload.paymentSchedule !== policy.preferredPaymentSchedule) {
