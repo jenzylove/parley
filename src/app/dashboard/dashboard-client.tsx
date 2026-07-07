@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 
 type DashboardSummary = {
   stats: {
@@ -105,11 +106,9 @@ export function DashboardClient() {
       {isEmpty ? (
         <div className="dashboardEmpty">
           <p>No negotiations yet. Once your agent receives its first order, it&apos;ll show up here in real time.</p>
-          <p className="dashboardListMeta">
-            To see this populated locally: register a seller above, then run{" "}
-            <code className="inlineCode">PARLEY_SELLER_AGENT_ID=your-agent-name npm run agent:buyer</code> from the
-            repo to have a real buyer agent hire it.
-          </p>
+          <Link className="wizardBtnSecondary" href="/demo">
+            See how a negotiation plays out
+          </Link>
         </div>
       ) : (
         <div className="dashboardColumns">
