@@ -1,37 +1,46 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Protocol", href: "#proof" },
-  { label: "Try it", href: "#theater" },
-  { label: "Spec", href: "https://github.com/jenzylove/parley/blob/main/docs/SPEC.md", external: true },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Docs", href: "https://github.com/jenzylove/parley/blob/main/docs/SPEC.md", external: true },
 ];
 
 export function SiteHeader() {
   return (
     <motion.header
-      className="siteHeader"
+      className="siteHeader fullBleed"
       initial={{ y: -24, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <a className="brandMark" href="#top">
-        <span className="brandGlyph">P</span>
-        <span>Parley</span>
-      </a>
+      <div className="siteHeaderInner">
+        <Link className="brandMark" href="/">
+          <span className="brandGlyph">P</span>
+          <span>Parley</span>
+        </Link>
 
-      <nav className="siteNav">
-        {navLinks.map((link) => (
-          <a key={link.label} href={link.href} target={link.external ? "_blank" : undefined} rel={link.external ? "noreferrer" : undefined}>
-            {link.label}
-          </a>
-        ))}
-      </nav>
+        <nav className="siteNav">
+          {navLinks.map((link) =>
+            link.external ? (
+              <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ) : (
+              <Link key={link.label} href={link.href}>
+                {link.label}
+              </Link>
+            ),
+          )}
+        </nav>
 
-      <a className="headerCta" href="#theater">
-        Watch a negotiation
-      </a>
+        <Link className="headerCta" href="/start">
+          Start Building
+        </Link>
+      </div>
     </motion.header>
   );
 }

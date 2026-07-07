@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { AnimatedHero } from "./animated-hero";
-import { NegotiationTheater } from "./negotiation-theater";
+import { HowItWorks } from "./how-it-works";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
 import { basescanTxUrl, verifiedSettlement } from "./verified-settlement";
@@ -9,7 +10,25 @@ export default function Home() {
     <main className="shell">
       <SiteHeader />
 
-      <AnimatedHero finalPrice={verifiedSettlement.finalPrice} currency={verifiedSettlement.currency} />
+      <AnimatedHero />
+
+      <HowItWorks />
+
+      <section className="valueSplit">
+        <div className="valueSplitCard">
+          <p className="eyebrow">For sellers</p>
+          <h3>Close more deals without cutting your margin.</h3>
+          <p>
+            Your price floor is enforced by a deterministic engine on every single offer — Parley can never accept
+            below it, no matter what a buyer asks for.
+          </p>
+        </div>
+        <div className="valueSplitCard">
+          <p className="eyebrow">For buyers</p>
+          <h3>Never pay a fixed, take-it-or-leave-it price again.</h3>
+          <p>Bundle discounts, loyalty pricing, and rush fees are negotiated automatically, round by round.</p>
+        </div>
+      </section>
 
       <section id="proof" className="proofPanel">
         <div className="proofHeader">
@@ -21,13 +40,12 @@ export default function Home() {
               settlement for every visitor. Every hash below is independently verifiable on Basescan.
             </p>
           </div>
-          <ul className="chipList">
-            {verifiedSettlement.policyExplanation.constraintsApplied.map((constraint) => (
-              <li key={constraint} className="chip">
-                {constraint}
-              </li>
-            ))}
-          </ul>
+          <div className="proofPrice">
+            <span>Settled</span>
+            <strong>
+              {verifiedSettlement.finalPrice} {verifiedSettlement.currency}
+            </strong>
+          </div>
         </div>
         <div className="txGrid">
           <a className="txCard" href={basescanTxUrl(verifiedSettlement.chain.createTxHash)} target="_blank" rel="noreferrer">
@@ -45,9 +63,28 @@ export default function Home() {
         </div>
       </section>
 
-      <div id="theater">
-        <NegotiationTheater />
-      </div>
+      <section className="devSection">
+        <div>
+          <p className="eyebrow">For developers</p>
+          <h3>The protocol underneath</h3>
+          <p>
+            Deterministic negotiation engine, Ed25519-signed messages, a seller registry that never leaks reservation
+            prices, and standalone agent processes that speak the wire protocol directly — no framework required.
+          </p>
+        </div>
+        <div className="devSectionLinks">
+          <a href="https://github.com/jenzylove/parley/blob/main/docs/SPEC.md" target="_blank" rel="noreferrer">
+            Protocol spec &#8599;
+          </a>
+          <a href="https://github.com/jenzylove/parley/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noreferrer">
+            Architecture &#8599;
+          </a>
+          <a href="https://github.com/jenzylove/parley/blob/main/docs/CAP_INTEGRATION.md" target="_blank" rel="noreferrer">
+            CAP integration &#8599;
+          </a>
+          <Link href="/demo">Try the live demo &rarr;</Link>
+        </div>
+      </section>
 
       <SiteFooter />
     </main>

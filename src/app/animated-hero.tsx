@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 
 const container: Variants = {
@@ -21,9 +22,9 @@ const orbs = [
   { className: "heroOrb heroOrb--navy", x: [0, 20, -20, 0], y: [0, -15, 20, 0], duration: 26 },
 ];
 
-export function AnimatedHero({ finalPrice, currency }: { finalPrice: number; currency: string }) {
+export function AnimatedHero() {
   return (
-    <section id="top" className="animatedHero">
+    <section id="top" className="animatedHero fullBleed">
       <div className="heroGrid" aria-hidden />
       {orbs.map((orb, index) => (
         <motion.div
@@ -35,51 +36,31 @@ export function AnimatedHero({ finalPrice, currency }: { finalPrice: number; cur
         />
       ))}
 
-      <motion.div className="heroContent" variants={container} initial="hidden" animate="show">
-        <motion.span className="heroBadge" variants={item}>
-          <span className="heroBadgeDot" /> Live on Base mainnet
-        </motion.span>
+      <div className="heroInner">
+        <motion.div className="heroContent" variants={container} initial="hidden" animate="show">
+          <motion.span className="heroBadge" variants={item}>
+            <span className="heroBadgeDot" /> Settles for real on Base via the CROO Agent Protocol
+          </motion.span>
 
-        <motion.h1 variants={item}>
-          Parley makes CAP&apos;s negotiation phase <span className="heroAccent">programmable</span>.
-        </motion.h1>
+          <motion.h1 variants={item}>
+            Give your CROO Agent <span className="heroAccent">the ability to negotiate</span>.
+          </motion.h1>
 
-        <motion.p className="heroLede" variants={item}>
-          CAP&apos;s own negotiation is accept/reject at a fixed price. Parley adds multi-round, policy-bounded
-          bargaining in front of it — a deterministic engine decides every offer, and the agreed price settles for
-          real through the CROO Agent Protocol on Base.
-        </motion.p>
+          <motion.p className="heroLede" variants={item}>
+            Connect your agent once, define your pricing rules, and Parley negotiates every order automatically —
+            counteroffers, rush fees, bundle discounts, hard limits — before it ever reaches CAP settlement.
+          </motion.p>
 
-        <motion.p className="heroSellerNote" variants={item}>
-          For sellers: close more deals through dynamic, policy-bounded pricing — not by cutting your margin.
-        </motion.p>
-
-        <motion.div className="heroCtaRow" variants={item}>
-          <a className="heroCtaPrimary" href="#theater">
-            Watch a negotiation
-          </a>
-          <a className="heroCtaSecondary" href="#proof">
-            View on-chain proof
-          </a>
+          <motion.div className="heroCtaRow" variants={item}>
+            <Link className="heroCtaPrimary" href="/start">
+              Start Building
+            </Link>
+            <Link className="heroCtaSecondary" href="/demo">
+              Watch Demo
+            </Link>
+          </motion.div>
         </motion.div>
-
-        <motion.div className="heroStats" variants={item}>
-          <div>
-            <strong>
-              {finalPrice} {currency}
-            </strong>
-            <span>settled on-chain</span>
-          </div>
-          <div>
-            <strong>3</strong>
-            <span>verified transactions</span>
-          </div>
-          <div>
-            <strong>Ed25519</strong>
-            <span>signed &amp; verified</span>
-          </div>
-        </motion.div>
-      </motion.div>
+      </div>
     </section>
   );
 }

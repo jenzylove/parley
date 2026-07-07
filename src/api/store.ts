@@ -67,6 +67,13 @@ export function listPendingForSeller(sellerAgentId: string): string[] {
     .map((entry) => entry.session.negotiationId);
 }
 
+/** Read-only enumeration for dashboard/summary views. No auth/ownership scoping exists yet — this is every negotiation this server process has handled, newest first. */
+export function listAllNegotiations(): StoredNegotiation[] {
+  return Array.from(negotiations.values()).sort(
+    (a, b) => new Date(b.session.createdAt).getTime() - new Date(a.session.createdAt).getTime(),
+  );
+}
+
 export function clearNegotiationsForTests() {
   negotiations.clear();
 }

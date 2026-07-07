@@ -26,6 +26,56 @@ const messageBadgeClass: Record<ProtocolMessage["messageType"], string> = {
   NoDeal: "badge badge--nodeal",
 };
 
+const agreementStages = ["Buyer", "Offer", "Counteroffer", "Buyer Response", "Agreement", "Locked Terms", "CAP Settlement", "Completed"] as const;
+const noDealStages = ["Buyer", "Offer", "Counteroffer", "Buyer Response", "No Deal"] as const;
+
+function narrativeStageFlags(revealed: Step[], buyerAgentId: string, isNoDeal: boolean): Record<string, boolean> {
+  const messages = revealed.filter((s): s is Extract<Step, { kind: "message" }> => s.kind === "message").map((s) => s.message);
+  const lifecycle = revealed.filter((s): s is Extract<Step, { kind: "lifecycle" }> => s.kind === "lifecycle").map((s) => s.event);
+
+  const hasOpeningOffer = messages.some((m) => m.messageType === "Offer");
+  const hasCounter = messages.some((m) => m.messageType === "CounterOffer");
+  const hasBuyerCounter = messages.some((m) => m.messageType === "CounterOffer" && m.sender === buyerAgentId);
+  const hasNoDeal = messages.some((m) => m.messageType === "NoDeal" || m.messageType === "Reject");
+
+  if (isNoDeal) {
+    return {
+      Buyer: hasOpeningOffer,
+      Offer: hasOpeningOffer,
+      Counteroffer: hasCounter,
+      "Buyer Response": hasBuyerCounter,
+      "No Deal": hasNoDeal,
+    };
+  }
+
+  return {
+    Buyer: hasOpeningOffer,
+    Offer: hasOpeningOffer,
+    Counteroffer: hasCounter,
+    "Buyer Response": hasBuyerCounter,
+    Agreement: messages.some((m) => m.messageType === "Agreement"),
+    "Locked Terms": lifecycle.some((e) => e.status === "LOCKED"),
+    "CAP Settlement": lifecycle.some((e) => e.status === "SETTLING"),
+    Completed: lifecycle.some((e) => e.status === "SETTLED"),
+  };
+}
+
+function NarrativeStepper({ revealed, buyerAgentId, isNoDeal }: { revealed: Step[]; buyerAgentId: string; isNoDeal: boolean }) {
+  const stages = isNoDeal ? noDealStages : agreementStages;
+  const flags = narrativeStageFlags(revealed, buyerAgentId, isNoDeal);
+
+  return (
+    <ol className="narrativeStepper">
+      {stages.map((stage) => (
+        <li key={stage} className={flags[stage] ? "narrativeStep narrativeStep--reached" : "narrativeStep"}>
+          <span className="narrativeStepDot" aria-hidden />
+          <span>{stage}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function MessageStep({ message }: { message: ProtocolMessage }) {
   if (message.messageType === "Offer" || message.messageType === "CounterOffer") {
     const payload = message.payload as OfferPayload;
@@ -157,12 +207,13 @@ export function NegotiationTheater() {
   const noDeal = data?.result.noDeal?.payload as NoDealPayload | undefined;
   const fullyRevealed = steps.length > 0 && revealCount >= steps.length;
   const order = data?.commerce.order;
+  const revealedSteps = steps.slice(0, revealCount);
 
   return (
     <section className="theater">
       <div className="theaterHeader">
         <div>
-          <p className="eyebrow">Watch a negotiation happen</p>
+          <p className="eyebrow">See it in action</p>
           <h2>Pick a scenario</h2>
         </div>
         <p className="theaterNote">Instant &amp; free — settles through a local mock adapter, not real CAP.</p>
@@ -187,23 +238,7 @@ export function NegotiationTheater() {
 
       {data ? (
         <div className="theaterStage">
-          <ol className="stepTimeline">
-            {steps.slice(0, revealCount).map((step) =>
-              step.kind === "message" ? (
-                <li key={step.key} className="stepEntry stepEntry--in">
-                  <span className={messageBadgeClass[step.message.messageType]}>{step.message.messageType}</span>
-                  <MessageStep message={step.message} />
-                </li>
-              ) : (
-                <li key={step.key} className="stepEntry stepEntry--in stepEntry--lifecycle">
-                  <span className="badge badge--lifecycle">{step.event.status}</span>
-                  <div className="stepBody">
-                    <p className="stepHeadline">{step.event.note}</p>
-                  </div>
-                </li>
-              ),
-            )}
-          </ol>
+          <NarrativeStepper revealed={revealedSteps} buyerAgentId={data.result.session.buyerAgentId} isNoDeal={!!noDeal} />
 
           {fullyRevealed && agreement ? (
             <div className="outcomeCard outcomeCard--agreement">
@@ -236,8 +271,29 @@ export function NegotiationTheater() {
           ) : null}
 
           <details className="rawDetails">
-            <summary>Raw protocol JSON</summary>
-            <pre>{JSON.stringify(data, null, 2)}</pre>
+            <summary>Developer view — protocol messages &amp; raw JSON</summary>
+            <ol className="stepTimeline">
+              {revealedSteps.map((step) =>
+                step.kind === "message" ? (
+                  <li key={step.key} className="stepEntry stepEntry--in">
+                    <span className={messageBadgeClass[step.message.messageType]}>{step.message.messageType}</span>
+                    <MessageStep message={step.message} />
+                  </li>
+                ) : (
+                  <li key={step.key} className="stepEntry stepEntry--in stepEntry--lifecycle">
+                    <span className="badge badge--lifecycle">{step.event.status}</span>
+                    <div className="stepBody">
+                      <p className="stepHeadline">{step.event.note}</p>
+                    </div>
+                  </li>
+                ),
+              )}
+            </ol>
+
+            <details className="rawDetails">
+              <summary>Raw protocol JSON</summary>
+              <pre>{JSON.stringify(data, null, 2)}</pre>
+            </details>
           </details>
         </div>
       ) : null}

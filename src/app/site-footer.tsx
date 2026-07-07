@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function SiteFooter() {
   return (
     <footer className="siteFooter">
@@ -10,11 +12,12 @@ export function SiteFooter() {
       </div>
 
       <div className="footerLinks">
+        <Link href="/start">Start Building</Link>
+        <Link href="/dashboard">Dashboard</Link>
+        <Link href="/demo">Watch Demo</Link>
         <a href="https://github.com/jenzylove/parley" target="_blank" rel="noreferrer">
           GitHub
         </a>
-        <a href="#proof">Verified settlement</a>
-        <a href="#theater">Negotiation theater</a>
         <a href="https://cap.croo.network" target="_blank" rel="noreferrer">
           CROO Agent Protocol
         </a>
