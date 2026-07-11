@@ -38,6 +38,26 @@ export async function POST(request: Request) {
       return NextResponse.json(versionedError("sellerAgentId is required"), { status: 400 });
     }
 
+    // The wizard always sends numbers, but this is a public POST endpoint —
+    // guard against a raw caller sending strings, NaN, or negatives before the
+    // values reach the policy (validateSellerPolicy is a second backstop).
+    const numericFields: Array<keyof OnboardingRequest> = [
+      "minimumPrice",
+      "preferredPrice",
+      "standardDeliveryDays",
+      "rushFee",
+      "bundleDiscount",
+      "recurringClientDiscount",
+      "maximumWorkload",
+      "maxRounds",
+    ];
+    for (const field of numericFields) {
+      const value = body[field];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        return NextResponse.json(versionedError(`"${field}" must be a number greater than or equal to 0.`), { status: 400 });
+      }
+    }
+
     const { publicKey } = generateAgentKeyPair();
 
     const policy: SellerPolicy = {

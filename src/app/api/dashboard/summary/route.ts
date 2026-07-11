@@ -25,7 +25,10 @@ export async function GET() {
   const resolved = all.filter((entry) => entry.result.agreement || entry.result.noDeal);
   const agreed = all.filter((entry) => entry.result.agreement);
 
-  const revenue = agreed.reduce((sum, entry) => sum + (entry.result.agreement?.payload.finalOffer.price ?? 0), 0);
+  // "Revenue settled" must mean settled — count only agreements whose order
+  // actually reached SETTLED, not every agreement regardless of settlement.
+  const settled = agreed.filter((entry) => entry.commerce?.order.status === "SETTLED");
+  const revenue = settled.reduce((sum, entry) => sum + (entry.result.agreement?.payload.finalOffer.price ?? 0), 0);
   const dealsSaved = agreed.reduce((sum, entry) => sum + (entry.result.agreement?.payload.savings ?? 0), 0);
 
   const discountPercents = agreed
