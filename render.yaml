@@ -1,0 +1,38 @@
+# Render blueprint for Parley.
+#
+# WHY THIS EXISTS: Parley keeps its seller registry and negotiation history in
+# process memory (see src/api/global-singleton.ts). That is correct on a single
+# long-lived Node process, but it silently loses writes on Vercel's serverless
+# model, where each request can hit a different short-lived instance. Deploying
+# here as ONE always-on web service makes the in-memory architecture behave in
+# production exactly as it does in local dev.
+#
+# Deploy: push this repo, then in the Render dashboard choose "New +" ->
+# "Blueprint" and point it at this repo. Set the secret env vars below (marked
+# sync:false) in the dashboard after the first deploy.
+services:
+  - type: web
+    name: parley
+    runtime: node
+    plan: free
+    # numInstances is intentionally 1: the in-memory store is not shared across
+    # instances, so scaling out would re-introduce the split-brain state problem.
+    numInstances: 1
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Shared secret gating GET /api/sellers/[id]/policy, which the standalone
+      # provider listener uses to fetch a seller's configured policy. Must match
+      # the PARLEY_INTERNAL_KEY in the .env of whoever runs the listener.
+      - key: PARLEY_INTERNAL_KEY
+        sync: false
+      # Optional. Without it, negotiation explanations fall back to a
+      # deterministic local template.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # NOTE: the real CROO_* settlement secrets are deliberately NOT set here.
+      # The public site is meant to run on the free MockSettlementAdapter
+      # (instant, no real funds). Real on-chain settlement is exercised by the
+      # standalone agent processes running locally with their own credentials.
